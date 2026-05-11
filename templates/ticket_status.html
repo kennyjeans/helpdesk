@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+
+{% block title %}Заявка #{{ ticket.id }}{% endblock %}
+
+{% block content %}
+<div class="card">
+    <!-- Шапка с ID и статусом -->
+    <div class="ticket-header">
+        <div>
+            <h1 class="ticket-id">Заявка #{{ ticket.id }}</h1>
+            <p class="text-muted">Создана: {{ ticket.created_at }}</p>
+        </div>
+        <span class="status-badge status-{{ ticket.status }} status-large">
+            {% if ticket.status == 'new' %}🆕 Новая
+            {% elif ticket.status == 'in_progress' %}⚙️ В работе
+            {% elif ticket.status == 'resolved' %}✅ Решена
+            {% elif ticket.status == 'closed' %}📦 Закрыта
+            {% endif %}
+        </span>
+    </div>
+
+    <!-- Прогресс-бар статуса -->
+    <div class="progress-steps">
+        <div class="progress-step {% if ticket.status in ['new', 'in_progress', 'resolved', 'closed'] %}active{% endif %}">
+            <div class="step-circle">1</div>
+            <div class="step-label">Создана</div>
+        </div>
+        <div class="progress-step {% if ticket.status in ['in_progress', 'resolved', 'closed'] %}active{% endif %}">
+            <div class="step-circle">2</div>
+            <div class="step-label">В работе</div>
+        </div>
+        <div class="progress-step {% if ticket.status in ['resolved', 'closed'] %}active{% endif %}">
+            <div class="step-circle">3</div>
+            <div class="step-label">Решена</div>
+        </div>
+        <div class="progress-step {% if ticket.status == 'closed' %}active{% endif %}">
+            <div class="step-circle">4</div>
+            <div class="step-label">Закрыта</div>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Две колонки с информацией -->
+    <div class="two-columns">
+        <!-- Левая колонка -->
+        <div>
+            <h3>📋 Информация о заявке</h3>
+            <div class="info-card">
+                <div class="info-item">
+                    <span class="info-icon">🔧</span>
+                    <div>
+                        <div class="info-label">Категория</div>
+                        <div class="info-value">
+                            {% if ticket.category == 'IT' %}💻 IT (компьютеры, программы, принтеры)
+                            {% elif ticket.category == 'MED' %}🏥 Медицинское оборудование
+                            {% else %}{{ ticket.category }}{% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                {% if ticket.problem_type %}
+                <div class="info-item">
+                    <span class="info-icon">📋</span>
+                    <div>
+                        <div class="info-label">Тип проблемы</div>
+                        <div class="info-value">
+                            {% set problem_map = {
+                            'emiac': '📋 ЕМИАС',
+                            'tech': '💻 Техника (компьютеры, интернет, системы)',
+                            'printer': '🖨️ Принтер',
+                            'other': '💬 Другое (ЭЦП, программы)',
+                            'repair': '🔧 Ремонт',
+                            'metrology': '📏 Метрология',
+                            'commissioning': '🚀 Ввод в эксплуатацию',
+                            'common': '❓ Общие вопросы'
+                            } %}
+                            {{ problem_map.get(ticket.problem_type, ticket.problem_type) }}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="info-item">
+                    <span class="info-icon">📍</span>
+                    <div>
+                        <div class="info-label">Местоположение</div>
+                        <div class="info-value">
+                            {% set location_map = {
+                            'main': '🏥 Видновская РКБ',
+                            'polyclinic1': '🏥 Видновская поликлиника №1',
+                            'polyclinic3': '🏥 Видновская поликлиника №3',
+                            'children': '🏥 Детская поликлиника'
+                            } %}
+                            {{ location_map.get(ticket.location, ticket.location) }}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-icon">🚪</span>
+                    <div>
+                        <div class="info-label">Кабинет/пост</div>
+                        <div class="info-value">{{ ticket.office }}</div>
+                    </div>
+                </div>
+
+                {% if ticket.assistant_id %}
+                <div class="info-item">
+                    <span class="info-icon">🆔</span>
+                    <div>
+                        <div class="info-label">ID ассистента</div>
+                        <div class="info-value">{{ ticket.assistant_id }}</div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if ticket.printer_manufacturer %}
+                <div class="info-item">
+                    <span class="info-icon">🖨️</span>
+                    <div>
+                        <div class="info-label">Принтер</div>
+                        <div class="info-value">{{ ticket.printer_manufacturer }} {{ ticket.printer_model or '' }}</div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if ticket.printer_problem %}
+                <div class="info-item">
+                    <span class="info-icon">⚠️</span>
+                    <div>
+                        <div class="info-label">Проблема с принтером</div>
+                        <div class="info-value">
+                            {% set printer_problem_map = {
+                            'cartridge': '🧴 Закончился картридж',
+                            'stripes': '📄 Черные полосы на бумаге',
+                            'stopped': '🕐 Принтер печатал раньше, сейчас нет',
+                            'not_work': '⛔ Принтер вообще не печатает',
+                            'other': '💬 Другое'
+                            } %}
+                            {{ printer_problem_map.get(ticket.printer_problem, ticket.printer_problem) }}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Правая колонка -->
+        <div>
+            <h3>👤 Информация о заявителе</h3>
+            <div class="info-card">
+                <div class="info-item">
+                    <span class="info-icon">👨‍⚕️</span>
+                    <div>
+                        <div class="info-label">ФИО</div>
+                        <div class="info-value">{{ ticket.last_name }} {{ ticket.first_name }} {{ ticket.middle_name or '' }}</div>
+                    </div>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-icon">💼</span>
+                    <div>
+                        <div class="info-label">Должность</div>
+                        <div class="info-value">{{ ticket.post }}</div>
+                    </div>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-icon">📞</span>
+                    <div>
+                        <div class="info-label">Телефон</div>
+                        <div class="info-value">{{ ticket.phone }}</div>
+                    </div>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-icon">🔑</span>
+                    <div>
+                        <div class="info-label">Логин</div>
+                        <div class="info-value">{{ ticket.username }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Описание проблемы -->
+    <div class="description-section">
+        <h3>💬 Описание проблемы</h3>
+        <div class="description-box">
+            {% if ticket.description %}
+            {% set cleaned = ticket.description | clean_text %}
+            {% if cleaned %}
+            {{ cleaned | nl2br | safe }}
+            {% else %}
+            <em class="text-muted">Описание отсутствует</em>
+            {% endif %}
+            {% else %}
+            <em class="text-muted">Описание отсутствует</em>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Ответ оператора -->
+    {% if ticket.operator_answer %}
+    <div class="answer-section">
+        <h3>📨 Ответ технической поддержки</h3>
+        <div class="answer-box">
+            {% set cleaned_answer = ticket.operator_answer | clean_text %}
+            {% if cleaned_answer %}
+            {{ cleaned_answer | nl2br | safe }}
+            {% else %}
+            <em class="text-muted">Ответ отсутствует</em>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Дата выполнения -->
+    {% if ticket.completed_at %}
+    <div class="completed-banner">
+        ✅ <strong>Заявка выполнена</strong> - {{ ticket.completed_at }}
+    </div>
+    {% endif %}
+
+    <!-- Кнопки действий -->
+    <div class="action-buttons">
+        <a href="{{ url_for('dashboard') }}" class="btn btn-outline">← Назад к заявкам</a>
+
+        {% if ticket.status == 'new' %}
+        <div class="alert alert-info status-message">
+            ⏳ Заявка принята и ожидает ответа IT-отдела. Решение будет принято в ближайшее время. Следите за статусом заявки.
+        </div>
+        {% elif ticket.status == 'in_progress' %}
+        <div class="alert alert-warning status-message">
+            ⚙️ Заявка в работе. IT-отдел уже занимается вашей проблемой.
+        </div>
+        {% elif ticket.status == 'resolved' %}
+        <div class="alert alert-success status-message">
+            ✅ Заявка решена! Если проблема осталась, создайте новую заявку.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+    /* Дополнительные стили только для этой страницы */
+    .ticket-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+    }
+
+    .ticket-id {
+        font-size: 28px;
+        margin: 0;
+    }
+
+    .two-columns {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+    }
+
+    .description-section, .answer-section {
+        margin-top: 20px;
+    }
+
+    .action-buttons {
+        margin-top: 30px;
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+    }
+
+    .status-message {
+        flex: 1;
+        margin: 0;
+    }
+
+    .completed-banner {
+        margin-top: 20px;
+        text-align: center;
+        padding: 15px;
+        background: rgba(16, 185, 129, 0.1);
+        border-radius: 16px;
+    }
+
+    h3 {
+        margin: 0 0 10px 0;
+        font-size: 18px;
+    }
+
+    hr {
+        margin: 20px 0;
+    }
+
+    @media (max-width: 768px) {
+        .ticket-id {
+            font-size: 22px;
+        }
+
+        .status-large {
+            margin-top: 10px;
+        }
+
+        .action-buttons {
+            flex-direction: column;
+        }
+
+        .status-message {
+            order: -1;
+        }
+    }
+    /* В конце style.css добавьте */
+    .description-box {
+        word-break: break-word;
+        white-space: normal;
+    }
+
+    .description-box p {
+        margin: 0 0 10px 0;
+    }
+
+    .description-box p:first-child {
+        margin-top: 0;
+    }
+
+    .description-box p:last-child {
+        margin-bottom: 0;
+    }
+</style>
+{% endblock %}

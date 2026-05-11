@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Редактирование профиля{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 500px; margin: 0 auto ;">
+    <h2 style="text-align: center; margin-bottom: 25px">✏️ Редактирование профиля</h2>
+
+    <form method="POST">
+        <div class="form-group">
+            <label>📧 Email</label>
+            <input type="email" name="email" class="form-control" value="{{ user.email }}" required>
+        </div>
+        <div class="form-group">
+            <label>💼 Должность</label>
+            <input type="text" name="post" class="form-control" value="{{ user.post }}" required>
+        </div>
+        <div class="form-group">
+            <label>📱 Телефон</label>
+            <input type="tel" name="phone" class="form-control" value="{{ user.phone }}" required
+                   placeholder="79012345678">
+            <small class="text-muted">Только цифры, первая цифра 7 или 8</small>
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+            <button type="submit" class="btn btn-primary">💾 Сохранить</button>
+            <a href="{{ url_for('profile') }}" class="btn btn-outline">← Отмена</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

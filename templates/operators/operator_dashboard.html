@@ -1,0 +1,209 @@
+{% extends "operators/base_operator.html" %}
+
+{% block title %}Панель оператора{% endblock %}
+
+{% block content %}
+<div class="dashboard-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 20px;">
+    <h2>📊 Все заявки</h2>
+</div>
+
+<!-- Фильтры -->
+<div class="filter-buttons" style="margin-bottom: 25px; display: flex; gap: 10px; flex-wrap: wrap;">
+    <a href="?status=all" class="btn btn-outline {% if current_filter == 'all' %}active{% endif %}">📋 Активные</a>
+    <a href="?status=new" class="btn btn-outline {% if current_filter == 'new' %}active{% endif %}">🆕 Новые</a>
+    <a href="?status=in_progress" class="btn btn-outline {% if current_filter == 'in_progress' %}active{% endif %}">⚙️ В работе</a>
+    <a href="?status=resolved" class="btn btn-outline {% if current_filter == 'resolved' %}active{% endif %}">✅ Решенные</a>
+</div>
+
+<!-- Таблица заявок -->
+<div class="table-responsive">
+    <table class="tickets-table">
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>Заявитель</th>
+            <th>Категория</th>
+            <th>Описание</th>
+            <th>Статус</th>
+            <th>Создана</th>
+            <th>⏱️ Время</th>
+            <th>Исполнитель</th>
+            <th></th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for ticket in tickets %}
+        <tr class="ticket-row">
+            <td class="ticket-id">#{{ ticket.id }}</td>
+            <td class="ticket-user">
+                <strong>{{ ticket.last_name }} {{ ticket.first_name }} {{ ticket.middle_name }}</strong><br>
+                <small class="text-muted">{{ ticket.post }}</small>
+            </td>
+            <td class="ticket-category">
+                {% if ticket.category == 'IT' %}💻 IT
+                {% elif ticket.category == 'MED' %}🏥 Медицина
+                {% else %}{{ ticket.category }}{% endif %}
+            </td>
+            <td class="ticket-desc">
+                {{ ticket.description[:80] }}{% if ticket.description|length > 80 %}...{% endif %}
+            </td>
+            <td class="ticket-status">
+                <span class="status-badge status-{{ ticket.status }}">
+                    {% if ticket.status == 'new' %}🆕 Новая
+                    {% elif ticket.status == 'in_progress' %}⚙️ В работе
+                    {% elif ticket.status == 'resolved' %}✅ Решена
+                    {% else %}📦 Закрыта{% endif %}
+                </span>
+            </td>
+            <td class="ticket-date">{{ ticket.created_at[:16] }}</td>
+            <td class="ticket-timer">
+                {% if ticket.status == 'resolved' or ticket.status == 'closed' %}
+                <span class="text-muted">✅ завершена</span>
+                {% else %}
+                {% if ticket.hours_since_created %}
+                {% set hours = ticket.hours_since_created|float %}
+                {% if hours < 1 %}
+                {% set minutes = (hours * 60)|int %}
+                <span class="timer-new">🟢 {{ minutes }} мин.</span>
+                {% elif hours < 24 %}
+                <span class="timer-warning">🟡 {{ hours|int }} ч.</span>
+                {% else %}
+                <span class="timer-danger">🔴 {{ (hours / 24)|int }} дн.</span>
+                {% endif %}
+                {% else %}
+                <span class="text-muted">—</span>
+                {% endif %}
+                {% endif %}
+            </td>
+            <td class="ticket-operator">
+                {% if ticket.op_last_name %}
+                👨‍💻 {{ ticket.op_last_name }} {{ ticket.op_first_name|first if ticket.op_first_name else '' }}.
+                {% else %}
+                <span class="text-muted">—</span>
+                {% endif %}
+            </td>
+            <td class="ticket-action">
+                <a href="{{ url_for('operator_ticket', ticket_id=ticket.id) }}" class="btn btn-sm btn-primary">
+                    {% if ticket.status == 'new' %}📝 Принять{% elif ticket.status == 'in_progress' %}✏️ Редактировать{% else %}📋 Просмотр{% endif %}
+                </a>
+            </td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="9" style="text-align: center; padding: 40px;">
+                <div style="font-size: 48px;">📭</div>
+                <p>Заявок не найдено</p>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<style>
+    .active {
+        background: linear-gradient(135deg, var(--accent-color), #764ba2);
+        color: white;
+        border-color: transparent;
+    }
+
+    .ticket-row {
+        transition: all 0.2s ease;
+    }
+
+    .ticket-row:hover {
+        background: rgba(102, 126, 234, 0.05);
+    }
+
+    .ticket-id {
+        font-weight: 600;
+        color: var(--accent-color);
+        white-space: nowrap;
+    }
+
+    /* СТИЛИ ДЛЯ ПРАВИЛЬНОГО ПЕРЕНОСА ТЕКСТА */
+    .ticket-user {
+        max-width: 180px;
+        word-break: break-word;
+        white-space: normal;
+    }
+
+    .ticket-category {
+        white-space: nowrap;
+    }
+
+    .ticket-desc {
+        max-width: 300px;
+        word-break: break-word;
+        white-space: normal;
+        line-height: 1.4;
+        color: var(--text-secondary);
+        font-size: 13px;
+    }
+
+    /* Перенос длинных URL и слов */
+    .ticket-desc {
+        overflow-wrap: break-word;
+        word-wrap: break-word;
+        hyphens: auto;
+    }
+
+    .ticket-status {
+        white-space: nowrap;
+    }
+
+    .ticket-date {
+        font-size: 12px;
+        color: var(--text-muted);
+        white-space: nowrap;
+    }
+
+    .ticket-timer {
+        font-size: 12px;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+
+    .ticket-operator {
+        white-space: nowrap;
+    }
+
+    .ticket-action {
+        white-space: nowrap;
+    }
+
+    .timer-new {
+        color: #10b981;
+        font-weight: 600;
+    }
+
+    .timer-warning {
+        color: #f59e0b;
+        font-weight: 600;
+    }
+
+    .timer-danger {
+        color: #ef4444;
+        font-weight: 600;
+    }
+
+    /* Для очень длинных слов (например, URL) */
+    .ticket-desc {
+        word-break: break-all;
+    }
+
+    @media (max-width: 768px) {
+        .ticket-date, .ticket-timer, .ticket-operator, .ticket-category {
+            white-space: normal;
+        }
+
+        .ticket-desc {
+            max-width: 200px;
+        }
+
+        .ticket-user {
+            max-width: 120px;
+        }
+    }
+</style>
+{% endblock %}

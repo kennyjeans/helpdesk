@@ -1,0 +1,91 @@
+{% extends "operators/base_operator.html" %}
+
+{% block title %}Профиль оператора{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 550px; margin: 0 auto;">
+    <div style="text-align: center; margin-bottom: 30px;">
+        <div class="operator-big-avatar" style="width: 100px; height: 100px; font-size: 48px; margin: 0 auto 15px; background: linear-gradient(135deg, var(--accent-color), #764ba2); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+            👨‍💼
+        </div>
+        <h2>{{ operator.last_name or '' }} {{ operator.first_name or '' }} {{ operator.middle_name or '' }}</h2>
+        <p class="text-muted">@{{ operator.username }}</p>
+    </div>
+
+    <div class="profile-info">
+        <div class="info-row">
+            <div class="info-icon">👤</div>
+            <div class="info-content">
+                <div class="info-label">Логин</div>
+                <div class="info-value">{{ operator.username }}</div>
+            </div>
+        </div>
+
+        <div class="info-row">
+            <div class="info-icon">👨‍💼</div>
+            <div class="info-content">
+                <div class="info-label">ФИО</div>
+                <div class="info-value">{{ operator.last_name or '' }} {{ operator.first_name or '' }} {{ operator.middle_name or '' }}</div>
+            </div>
+        </div>
+
+        <div class="info-row">
+            <div class="info-icon">💼</div>
+            <div class="info-content">
+                <div class="info-label">Должность</div>
+                <div class="info-value">{{ operator.post or 'Оператор технической поддержки' }}</div>
+            </div>
+        </div>
+
+        <div class="info-row">
+            <div class="info-icon">📞</div>
+            <div class="info-content">
+                <div class="info-label">Телефон</div>
+                <div class="info-value">{{ operator.phone or 'не указан' }}</div>
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <div style="text-align: center;">
+        <a href="{{ url_for('operator_dashboard') }}" class="btn btn-outline">← Назад к заявкам</a>
+    </div>
+</div>
+
+<style>
+    .profile-info {
+        margin: 20px 0;
+    }
+
+    .info-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 15px;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--glass-border);
+    }
+
+    .info-icon {
+        font-size: 20px;
+        width: 40px;
+        text-align: center;
+    }
+
+    .info-content {
+        flex: 1;
+    }
+
+    .info-label {
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-bottom: 4px;
+    }
+
+    .info-value {
+        font-size: 16px;
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+</style>
+{% endblock %}

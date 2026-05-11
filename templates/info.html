@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Информация{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>ℹ️ Информация о работе технической поддержки</h2>
+
+    <div style="margin: 30px 0;">
+        <h3>🕛 Время работы</h3>
+        <ul>
+            <li><strong>Будни:</strong> С 08:00 до 17:00</li>
+            <li><strong>Суббота (дежурный):</strong> С 08:00 до 17:00</li>
+            <li><strong>Воскресенье:</strong> Выходной</li>
+        </ul>
+    </div>
+
+    <div style="margin: 30px 0;">
+        <h3>📞 Контакты</h3>
+        <p>Телефон: <strong>+7(901)796-16-64</strong></p>
+        <p>Email: <strong>ITVRKB@mosreg.ru</strong></p>
+    </div>
+
+    <div style="margin: 30px 0;">
+        <h3>🤖 О боте</h3>
+        <p>Бот работает круглосуточно и не спит ради Вас!</p>
+        <p class="text-muted">Все заявки, поданные в нерабочее время, IT-отдел обработает как только выйдет на работу</p>
+    </div>
+
+    <a href="{{ url_for('index') }}" class="btn btn-outline">← Назад в меню</a>
+</div>
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Главная{% endblock %}
+
+{% block content %}
+<div class="card fade-in" style="text-align: center; max-width: 600px; margin: 0 auto;">
+    <div style="text-align: center; margin-bottom: 30px;">
+        <div style="font-size: 64px;">🤖</div>
+        <h1>ВРКБ.IT-поддержка</h1>
+        <p style="color: #666;">Система создания и отслеживания заявок</p>
+    </div>
+
+    {% if not session.user_id %}
+    <div class="menu-buttons" style="display: flex; flex-direction: column; gap: 15px;">
+        <a href="{{ url_for('login') }}" class="btn btn-primary" style="padding: 15px;">🔑 Войти в систему</a>
+        <a href="{{ url_for('register') }}" class="btn btn-outline" style="padding: 15px;">📝 Зарегистрироваться</a>
+        <hr>
+        <a href="{{ url_for('info') }}" class="btn btn-outline">ℹ️ Информация о работе техподдержки</a>
+        <a href="{{ url_for('offices') }}" class="btn btn-outline">🚪 Кабинеты IT-отдела</a>
+    </div>
+    {% else %}
+    <div class="menu-buttons" style="display: flex; flex-direction: column; gap: 15px;">
+        <a href="{{ url_for('create_ticket') }}" class="btn btn-primary" style="padding: 15px;">📝 Создать заявку</a>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-outline" style="padding: 15px;">📋 Ваши заявки</a>
+        <hr>
+        <a href="{{ url_for('info') }}" class="btn btn-outline">ℹ️ Информация о работе техподдержки</a>
+        <a href="{{ url_for('offices') }}" class="btn btn-outline">🚪 Кабинеты IT-отдела</a>
+        <a href="{{ url_for('logout') }}" class="btn btn-danger" style="padding: 15px;">🚪 Выйти</a>
+    </div>
+    {% endif %}
+</div>
+
+<div class="card" style="margin-top: 20px; text-align: center;">
+    <p style="color: #666; font-size: 14px;">
+        🕛 Время работы тех. поддержки: <strong>Пн-Пт с 08:00 до 17:00</strong><br>
+        📞 Телефон: <strong>+7(901)796-16-64</strong><br>
+        🤖 Бот работает круглосуточно
+    </p>
+</div>
+{% endblock %}

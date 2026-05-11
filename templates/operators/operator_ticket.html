@@ -1,0 +1,293 @@
+{% extends "operators/base_operator.html" %}
+
+{% block title %}Заявка #{{ ticket.id }}{% endblock %}
+
+{% block content %}
+<div class="card">
+    <!-- Шапка -->
+    <div class="ticket-header-operator">
+        <div>
+            <h1 class="ticket-id-operator">✏️ Заявка #{{ ticket.id }}</h1>
+            <p class="text-muted">Создана: {{ ticket.created_at }}</p>
+        </div>
+        <span class="status-badge status-{{ ticket.status }} status-large">
+            {% if ticket.status == 'new' %}🆕 Новая
+            {% elif ticket.status == 'in_progress' %}⚙️ В работе
+            {% elif ticket.status == 'resolved' %}✅ Решена
+            {% else %}📦 Закрыта{% endif %}
+        </span>
+    </div>
+
+    <hr>
+
+    <!-- Блок с таймером времени -->
+    <div class="time-block">
+        <h3>⏱️ Время с момента создания</h3>
+        <div class="time-card">
+            {% if ticket.hours_since_created %}
+            {% set hours = ticket.hours_since_created|float %}
+            {% if hours < 1 %}
+            {% set minutes = (hours * 60)|int %}
+            <div class="time-value timer-new">🟢 {{ minutes }} минут</div>
+            {% elif hours < 24 %}
+            <div class="time-value timer-warning">🟡 {{ hours|int }} часов {{ ((hours % 1) * 60)|int }} минут</div>
+            {% else %}
+            <div class="time-value timer-danger">🔴 {{ (hours / 24)|int }} дней {{ (hours % 24)|int }} часов</div>
+            {% endif %}
+            {% else %}
+            <div class="time-value">—</div>
+            {% endif %}
+            <div class="time-label">с момента создания заявки</div>
+        </div>
+    </div>
+
+    <!-- Информация о заявителе -->
+    <div class="user-info-block">
+        <h3>👤 Информация о заявителе</h3>
+        <div class="info-grid">
+            <div class="info-item">
+                <span class="info-icon">👨‍⚕️</span>
+                <div>
+                    <div class="info-label">ФИО</div>
+                    <div class="info-value">{{ ticket.last_name or '' }} {{ ticket.first_name or '' }} {{ ticket.middle_name or '' }}</div>
+                </div>
+            </div>
+            <div class="info-item">
+                <span class="info-icon">📧</span>
+                <div>
+                    <div class="info-label">Email</div>
+                    <div class="info-value">{{ ticket.email or 'не указан' }}</div>
+                </div>
+            </div>
+            <div class="info-item">
+                <span class="info-icon">💼</span>
+                <div>
+                    <div class="info-label">Должность</div>
+                    <div class="info-value">{{ ticket.post or 'не указана' }}</div>
+                </div>
+            </div>
+            <div class="info-item">
+                <span class="info-icon">📞</span>
+                <div>
+                    <div class="info-label">Телефон</div>
+                    <div class="info-value">{{ ticket.phone or 'не указан' }}</div>
+                </div>
+            </div>
+            <div class="info-item">
+                <span class="info-icon">📍</span>
+                <div>
+                    <div class="info-label">Местоположение</div>
+                    <div class="info-value">
+                        {% set location_map = {
+                        'main': '🏥 Видновская РКБ',
+                        'polyclinic1': '🏥 Видновская поликлиника №1',
+                        'polyclinic3': '🏥 Видновская поликлиника №3',
+                        'children': '🏥 Детская поликлиника'
+                        } %}
+                        {{ location_map.get(ticket.location, ticket.location or 'не указано') }}
+                    </div>
+                </div>
+            </div>
+            <div class="info-item">
+                <span class="info-icon">🚪</span>
+                <div>
+                    <div class="info-label">Кабинет</div>
+                    <div class="info-value">{{ ticket.office or 'не указан' }}</div>
+                </div>
+            </div>
+            {% if ticket.assistant_id %}
+            <div class="info-item">
+                <span class="info-icon">🆔</span>
+                <div>
+                    <div class="info-label">ID ассистента</div>
+                    <div class="info-value">{{ ticket.assistant_id }}</div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Описание проблемы -->
+    <div class="description-block">
+        <h3>📝 Описание проблемы</h3>
+        <div class="description-box-operator">
+            {{ ticket.description | clean_text | nl2br | safe }}
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- Форма обработки -->
+    <form method="POST">
+        <div class="form-row">
+            <div class="form-group">
+                <label>⚡ Приоритет</label>
+                <select name="priority" class="form-control">
+                    <option value="low" {% if ticket.priority == 'low' %}selected{% endif %}>🟢 Низкий</option>
+                    <option value="medium" {% if ticket.priority == 'medium' %}selected{% endif %}>🟡 Средний</option>
+                    <option value="high" {% if ticket.priority == 'high' %}selected{% endif %}>🔴 Высокий</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>📊 Статус</label>
+                <select name="status" class="form-control">
+                    <option value="new" {% if ticket.status == 'new' %}selected{% endif %}>🆕 Новая</option>
+                    <option value="in_progress" {% if ticket.status == 'in_progress' %}selected{% endif %}>⚙️ В работе</option>
+                    <option value="resolved" {% if ticket.status == 'resolved' %}selected{% endif %}>✅ Решена</option>
+                    <option value="closed" {% if ticket.status == 'closed' %}selected{% endif %}>📦 Закрыта</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>💬 Ответ пользователю</label>
+            <textarea name="answer" rows="6" class="form-control"
+                      placeholder="Напишите ответ пользователю...">{{ ticket.operator_answer or '' }}</textarea>
+        </div>
+
+        <div class="action-buttons-operator">
+            <button type="submit" class="btn btn-primary">💾 Сохранить изменения</button>
+            <a href="{{ url_for('operator_dashboard') }}" class="btn btn-outline">← Назад к списку</a>
+        </div>
+    </form>
+</div>
+
+<style>
+    .ticket-header-operator {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+    }
+
+    .ticket-id-operator {
+        font-size: 28px;
+        margin: 0;
+    }
+
+    /* Блок с таймером */
+    .time-block {
+        margin: 20px 0;
+    }
+
+    .time-card {
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+        border-radius: 16px;
+        padding: 20px;
+        text-align: center;
+        margin-top: 10px;
+        border: 1px solid var(--glass-border);
+    }
+
+    .time-value {
+        font-size: 28px;
+        font-weight: 700;
+        margin-bottom: 5px;
+    }
+
+    .time-label {
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+    .timer-new {
+        color: #10b981;
+    }
+
+    .timer-warning {
+        color: #f59e0b;
+    }
+
+    .timer-danger {
+        color: #ef4444;
+    }
+
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 15px;
+        margin-top: 15px;
+        background: rgba(102, 126, 234, 0.05);
+        border-radius: 16px;
+        padding: 20px;
+    }
+
+    .info-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .info-icon {
+        font-size: 20px;
+        width: 32px;
+        text-align: center;
+    }
+
+    .info-label {
+        font-size: 11px;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .info-value {
+        font-size: 14px;
+        font-weight: 500;
+        margin-top: 2px;
+        word-break: break-word;
+        overflow-wrap: break-word;
+    }
+
+    .description-block {
+        margin: 25px 0;
+    }
+
+    .description-box-operator {
+        background: rgba(102, 126, 234, 0.05);
+        padding: 20px;
+        border-radius: 16px;
+        margin-top: 10px;
+        white-space: pre-wrap;
+        word-break: break-word;
+        overflow-wrap: break-word;
+        line-height: 1.5;
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+
+    .action-buttons-operator {
+        display: flex;
+        gap: 15px;
+        margin-top: 25px;
+        flex-wrap: wrap;
+    }
+
+    @media (max-width: 768px) {
+        .form-row {
+            grid-template-columns: 1fr;
+            gap: 15px;
+        }
+
+        .ticket-id-operator {
+            font-size: 22px;
+        }
+
+        .info-grid {
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+
+        .time-value {
+            font-size: 22px;
+        }
+    }
+</style>
+{% endblock %}

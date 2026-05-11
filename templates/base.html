@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>ВРКБ.IT-поддержка - {% block title %}Система поддержки{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/906/906334.png">
+    <meta name="theme-color" content="#667eea">
+</head>
+<body>
+<nav class="navbar">
+    <div class="container">
+        <!-- ЛЕВАЯ ЧАСТЬ: Профиль пользователя -->
+        <div class="nav-left">
+            {% if session.user_id %}
+            <!-- Профиль пользователя (кликабельный) -->
+            <div class="user-profile" onclick="toggleProfileDropdown()">
+                <div class="user-avatar">
+                    {{ session.full_name[0] if session.full_name else session.username[0] }}
+                </div>
+                <span class="user-name">{{ session.full_name[:25] if session.full_name else session.username }}</span>
+            </div>
+
+            <!-- Выпадающее меню профиля -->
+            <div class="profile-dropdown" id="profileDropdown">
+                <div class="dropdown-header">
+                    <div class="dropdown-fullname">{{ session.full_name }}</div>
+                    <div class="dropdown-email">{{ user.email }}</div>
+                </div>
+                <a href="{{ url_for('profile') }}" class="dropdown-item">
+                    👤 Мой профиль
+                </a>
+                <a href="{{ url_for('dashboard') }}" class="dropdown-item">
+                    📋 Мои заявки
+                </a>
+                <a href="{{ url_for('create_ticket') }}" class="dropdown-item">
+                    ➕ Новая заявка
+                </a>
+                <div class="dropdown-divider"></div>
+                <a href="{{ url_for('logout') }}" class="dropdown-item">
+                    🚪 Выйти
+                </a>
+            </div>
+            {% else %}
+            <div class="nav-guest">
+                <a href="{{ url_for('login') }}" class="nav-link">🔑 Вход</a>
+                <a href="{{ url_for('register') }}" class="nav-link">📝 Регистрация</a>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- ЦЕНТРАЛЬНАЯ ЧАСТЬ: Логотип -->
+        <div class="nav-center">
+            <div class="logo" onclick="window.location.href='{{ url_for('index') }}'">
+                <h2>✨ ВРКБ.IT-поддержка</h2>
+            </div>
+        </div>
+
+        <!-- ПРАВАЯ ЧАСТЬ: Быстрые ссылки и тема -->
+        <div class="nav-right">
+            {% if session.user_id %}
+            <a href="{{ url_for('dashboard') }}" class="nav-link">📋 Мои заявки</a>
+            <a href="{{ url_for('create_ticket') }}" class="nav-link">➕ Новая заявка</a>
+            {% else %}
+            <a href="{{ url_for('index') }}" class="nav-link">🏠 Главная</a>
+            {% endif %}
+            <button class="theme-toggle" onclick="toggleTheme()" id="themeToggleBtn">🌙</button>
+        </div>
+    </div>
+</nav>
+
+<div class="container fade-in">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div class="alert alert-{{ category }} fade-in">
+        {{ message }}
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+</div>
+
+<script>
+    // Переключение темы
+    function toggleTheme() {
+        const html = document.documentElement;
+        const currentTheme = html.getAttribute('data-theme');
+        const btn = document.getElementById('themeToggleBtn');
+
+        if (currentTheme === 'dark') {
+            html.removeAttribute('data-theme');
+            localStorage.setItem('theme', 'light');
+            btn.textContent = '🌙';
+        } else {
+            html.setAttribute('data-theme', 'dark');
+            localStorage.setItem('theme', 'dark');
+            btn.textContent = '☀️';
+        }
+    }
+
+    // Загрузка сохраненной темы
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        const btn = document.getElementById('themeToggleBtn');
+        if (btn) btn.textContent = '☀️';
+    }
+
+    // Переключение выпадающего меню профиля
+    function toggleProfileDropdown() {
+        const dropdown = document.getElementById('profileDropdown');
+        if (dropdown) {
+            dropdown.classList.toggle('show');
+        }
+    }
+
+    // Закрыть меню при клике вне его
+    document.addEventListener('click', function(event) {
+        const dropdown = document.getElementById('profileDropdown');
+        const profileBtn = document.querySelector('.user-profile');
+
+        if (dropdown && profileBtn && !profileBtn.contains(event.target) && !dropdown.contains(event.target)) {
+            dropdown.classList.remove('show');
+        }
+    });
+</script>
+</body>
+</html>

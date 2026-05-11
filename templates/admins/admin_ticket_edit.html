@@ -1,0 +1,172 @@
+{% extends "admins/base_admin.html" %}
+
+{% block title %}Редактирование заявки #{{ ticket.id }}{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 800px; margin: 0 auto;">
+    <h2 style="text-align: center; margin-bottom: 30px;">✏️ Редактирование заявки #{{ ticket.id }}</h2>
+
+    <!-- Информация о пользователе -->
+    <div class="info-block">
+        <h3>👤 Информация о пользователе</h3>
+        <div class="info-grid">
+            <div class="info-item">
+                <span class="info-label">ФИО:</span>
+                <span class="info-value">{{ ticket.last_name }} {{ ticket.first_name }} {{ ticket.middle_name or '' }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Email:</span>
+                <span class="info-value">{{ ticket.email }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Должность:</span>
+                <span class="info-value">{{ ticket.post }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Телефон:</span>
+                <span class="info-value">{{ ticket.phone }}</span>
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <form method="POST">
+        <div class="form-group">
+            <label>📋 Категория</label>
+            <input type="text" class="form-control" value="{{ ticket.category }}" disabled readonly>
+        </div>
+
+        <div class="form-group">
+            <label>📝 Описание проблемы</label>
+            <textarea class="form-control" rows="5" readonly disabled>{{ ticket.description }}</textarea>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>⚡ Приоритет</label>
+                <select name="priority" class="form-control">
+                    <option value="low" {% if ticket.priority == 'low' %}selected{% endif %}>🟢 Низкий</option>
+                    <option value="medium" {% if ticket.priority == 'medium' %}selected{% endif %}>🟡 Средний</option>
+                    <option value="high" {% if ticket.priority == 'high' %}selected{% endif %}>🔴 Высокий</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>📊 Статус</label>
+                <select name="status" class="form-control">
+                    <option value="new" {% if ticket.status == 'new' %}selected{% endif %}>🆕 Новая</option>
+                    <option value="in_progress" {% if ticket.status == 'in_progress' %}selected{% endif %}>⚙️ В работе</option>
+                    <option value="resolved" {% if ticket.status == 'resolved' %}selected{% endif %}>✅ Решена</option>
+                    <option value="closed" {% if ticket.status == 'closed' %}selected{% endif %}>📦 Закрыта</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>👨‍💼 Назначить оператора</label>
+            <select name="assigned_to" class="form-control">
+                <option value="">-- Не назначен --</option>
+                {% for operator in operators %}
+                <option value="{{ operator.id }}" {% if ticket.assigned_to == operator.id %}selected{% endif %}>
+                    {{ operator.last_name }} {{ operator.first_name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>💬 Ответ оператора</label>
+            <textarea name="operator_answer" rows="5" class="form-control" placeholder="Ответ оператора...">{{ ticket.operator_answer or '' }}</textarea>
+        </div>
+
+        <div class="info-block">
+            <h3>📅 Дополнительная информация</h3>
+            <div class="info-grid">
+                <div class="info-item">
+                    <span class="info-label">Создана:</span>
+                    <span class="info-value">{{ ticket.created_at }}</span>
+                </div>
+                {% if ticket.completed_at %}
+                <div class="info-item">
+                    <span class="info-label">Завершена:</span>
+                    <span class="info-value">{{ ticket.completed_at }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <hr>
+
+        <div class="action-buttons">
+            <button type="submit" class="btn btn-primary">💾 Сохранить изменения</button>
+            <a href="{{ url_for('admin_tickets') }}" class="btn btn-outline">← Назад к списку</a>
+        </div>
+    </form>
+</div>
+
+<style>
+    .info-block {
+        margin-bottom: 20px;
+    }
+
+    .info-block h3 {
+        font-size: 16px;
+        margin-bottom: 10px;
+        color: var(--accent-color);
+    }
+
+    .info-grid {
+        background: rgba(102, 126, 234, 0.05);
+        border-radius: 12px;
+        padding: 15px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 10px;
+    }
+
+    .info-item {
+        display: flex;
+        gap: 10px;
+        font-size: 14px;
+    }
+
+    .info-label {
+        font-weight: 600;
+        color: var(--text-muted);
+        min-width: 80px;
+    }
+
+    .info-value {
+        color: var(--text-primary);
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 15px;
+        margin-top: 20px;
+    }
+
+    @media (max-width: 768px) {
+        .form-row {
+            grid-template-columns: 1fr;
+            gap: 15px;
+        }
+
+        .info-item {
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .info-label {
+            min-width: auto;
+        }
+    }
+</style>
+{% endblock %}

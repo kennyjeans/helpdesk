@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>ВРКБ.Админка - {% block title %}Панель управления{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/906/906334.png">
+    <meta name="theme-color" content="#667eea">
+</head>
+<body>
+<nav class="navbar">
+    <div class="container">
+        <!-- ЛЕВАЯ ЧАСТЬ -->
+        <div class="nav-left">
+            {% if session.admin_logged_in %}
+            <div class="admin-info" onclick="toggleAdminDropdown()">
+                <div class="admin-avatar-small">👑</div>
+                <div class="admin-details">
+                    <div class="admin-fullname">{{ session.admin_full_name or session.admin_username or 'Администратор' }}</div>
+                    <div class="admin-role">Администратор системы</div>
+                </div>
+            </div>
+
+            <div class="admin-dropdown-menu" id="adminDropdownMenu">
+                <div class="dropdown-header">
+                    <div class="dropdown-fullname">{{ session.admin_full_name or session.admin_username }}</div>
+                    <div class="dropdown-role">Администратор</div>
+                </div>
+                <a href="{{ url_for('admin_profile') }}" class="dropdown-item">
+                    👤 Мой профиль
+                </a>
+                <a href="{{ url_for('admin_dashboard') }}" class="dropdown-item">
+                    📊 Панель управления
+                </a>
+                <div class="dropdown-divider"></div>
+                <a href="{{ url_for('admin_logout') }}" class="dropdown-item">
+                    🚪 Выйти
+                </a>
+            </div>
+            {% else %}
+            <div class="admin-guest">
+                <a href="{{ url_for('admin_login') }}" class="btn btn-outline btn-sm">🔑 Вход администратора</a>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- ЦЕНТРАЛЬНАЯ ЧАСТЬ -->
+        <div class="nav-center">
+            <div class="logo" onclick="window.location.href='{{ url_for('admin_dashboard') if session.admin_logged_in else url_for('admin_login') }}'">
+                <h2>👑 ВРКБ.Админка</h2>
+            </div>
+        </div>
+
+        <!-- ПРАВАЯ ЧАСТЬ -->
+        <div class="nav-right">
+            <div class="mode-badge">
+                <span class="mode-icon">👑</span>
+                <span class="mode-text">Режим администратора</span>
+            </div>
+            <button class="theme-toggle" onclick="toggleTheme()" id="themeToggleBtn">🌙</button>
+        </div>
+    </div>
+</nav>
+
+<!-- Меню навигации для админа -->
+{% if session.admin_logged_in %}
+<div class="admin-nav">
+    <div class="container">
+        <div class="admin-nav-links">
+            <a href="{{ url_for('admin_dashboard') }}" class="admin-nav-link">📊 Главная</a>
+            <a href="{{ url_for('admin_users') }}" class="admin-nav-link">👥 Пользователи</a>
+            <a href="{{ url_for('admin_operators') }}" class="admin-nav-link">👨‍💼 Операторы</a>
+            <a href="{{ url_for('admin_tickets') }}" class="admin-nav-link">📋 Все заявки</a>
+            <a href="{{ url_for('admin_settings') }}" class="admin-nav-link">⚙️ Настройки</a>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="container fade-in">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div class="alert alert-{{ category }} fade-in">
+        {{ message }}
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+</div>
+
+<style>
+    /* Стили для админ панели */
+    .admin-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: rgba(102, 126, 234, 0.15);
+        padding: 6px 16px;
+        border-radius: 50px;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        border: 1px solid rgba(102, 126, 234, 0.3);
+    }
+
+    .admin-info:hover {
+        background: rgba(102, 126, 234, 0.25);
+        transform: translateY(-1px);
+    }
+
+    .admin-avatar-small {
+        font-size: 28px;
+    }
+
+    .admin-details {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .admin-fullname {
+        font-weight: 600;
+        font-size: 14px;
+        color: var(--text-primary);
+        line-height: 1.3;
+    }
+
+    .admin-role {
+        font-size: 11px;
+        color: #fbbf24;
+    }
+
+    .admin-dropdown-menu {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        margin-top: 8px;
+        background: var(--glass-bg);
+        backdrop-filter: blur(var(--blur-amount));
+        border-radius: 20px;
+        border: 1px solid var(--glass-border);
+        box-shadow: var(--shadow-lg);
+        min-width: 260px;
+        z-index: 200;
+        overflow: hidden;
+        animation: fadeInDown 0.2s ease;
+        display: none;
+    }
+
+    .admin-dropdown-menu.show {
+        display: block;
+    }
+
+    /* Админ навигация */
+    .admin-nav {
+        background: rgba(0, 0, 0, 0.2);
+        backdrop-filter: blur(5px);
+        border-bottom: 1px solid var(--glass-border);
+        padding: 8px 0;
+    }
+
+    .admin-nav-links {
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .admin-nav-link {
+        text-decoration: none;
+        color: var(--text-secondary);
+        padding: 8px 16px;
+        border-radius: 30px;
+        transition: all 0.3s ease;
+        font-size: 14px;
+    }
+
+    .admin-nav-link:hover {
+        background: rgba(102, 126, 234, 0.2);
+        color: var(--accent-color);
+    }
+
+    .mode-badge {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(102, 126, 234, 0.15);
+        border: 1px solid rgba(102, 126, 234, 0.3);
+        border-radius: 40px;
+        padding: 6px 16px;
+    }
+
+    .mode-icon {
+        font-size: 18px;
+    }
+
+    .mode-text {
+        font-size: 13px;
+        font-weight: 500;
+        color: #fbbf24;
+    }
+
+    @media (max-width: 768px) {
+        .admin-details {
+            display: none;
+        }
+
+        .admin-nav-links {
+            gap: 10px;
+        }
+
+        .admin-nav-link {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+    }
+</style>
+
+<script>
+    function toggleTheme() {
+        const html = document.documentElement;
+        const currentTheme = html.getAttribute('data-theme');
+        const btn = document.getElementById('themeToggleBtn');
+
+        if (currentTheme === 'dark') {
+            html.removeAttribute('data-theme');
+            localStorage.setItem('theme', 'light');
+            btn.textContent = '🌙';
+        } else {
+            html.setAttribute('data-theme', 'dark');
+            localStorage.setItem('theme', 'dark');
+            btn.textContent = '☀️';
+        }
+    }
+
+    function toggleAdminDropdown() {
+        const dropdown = document.getElementById('adminDropdownMenu');
+        if (dropdown) {
+            dropdown.classList.toggle('show');
+        }
+    }
+
+    document.addEventListener('click', function(event) {
+        const dropdown = document.getElementById('adminDropdownMenu');
+        const info = document.querySelector('.admin-info');
+        if (dropdown && info && !info.contains(event.target) && !dropdown.contains(event.target)) {
+            dropdown.classList.remove('show');
+        }
+    });
+
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        const btn = document.getElementById('themeToggleBtn');
+        if (btn) btn.textContent = '☀️';
+    }
+</script>
+</body>
+</html>

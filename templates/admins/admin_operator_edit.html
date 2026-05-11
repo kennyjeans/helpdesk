@@ -1,0 +1,73 @@
+{% extends "admins/base_admin.html" %}
+
+{% block title %}Редактирование оператора{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 600px; margin: 0 auto;">
+    <h2 style="text-align: center; margin-bottom: 30px;">✏️ Редактирование оператора</h2>
+
+    <form method="POST">
+        <div class="form-group">
+            <label>👤 Логин</label>
+            <input type="text" class="form-control" value="{{ operator.username }}" disabled readonly>
+            <small class="text-muted">Логин нельзя изменить</small>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>📝 Фамилия</label>
+                <input type="text" name="last_name" class="form-control" value="{{ operator.last_name or '' }}" required>
+            </div>
+
+            <div class="form-group">
+                <label>📝 Имя</label>
+                <input type="text" name="first_name" class="form-control" value="{{ operator.first_name or '' }}" required>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>📝 Отчество</label>
+            <input type="text" name="middle_name" class="form-control" value="{{ operator.middle_name or '' }}">
+        </div>
+
+        <div class="form-group">
+            <label>💼 Должность</label>
+            <input type="text" name="post" class="form-control" value="{{ operator.post or '' }}">
+        </div>
+
+        <div class="form-group">
+            <label>📱 Телефон</label>
+            <input type="tel" name="phone" class="form-control" value="{{ operator.phone or '' }}" placeholder="79012345678">
+            <small class="text-muted">Только цифры, первая цифра 7 или 8</small>
+        </div>
+
+        <hr>
+
+        <div class="action-buttons">
+            <button type="submit" class="btn btn-primary">💾 Сохранить изменения</button>
+            <a href="{{ url_for('admin_operators') }}" class="btn btn-outline">← Отмена</a>
+        </div>
+    </form>
+</div>
+
+<style>
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 15px;
+        margin-top: 20px;
+    }
+
+    @media (max-width: 768px) {
+        .form-row {
+            grid-template-columns: 1fr;
+            gap: 15px;
+        }
+    }
+</style>
+{% endblock %}

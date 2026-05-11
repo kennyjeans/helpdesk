@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>ВРКБ.IT-Оператор - {% block title %}Панель управления{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/906/906334.png">
+    <meta name="theme-color" content="#667eea">
+</head>
+<body>
+<nav class="navbar">
+    <div class="container">
+        <!-- ЛЕВАЯ ЧАСТЬ: ФИО оператора -->
+        <div class="nav-left">
+            {% if session.operator_logged_in %}
+            <div class="operator-info" onclick="toggleOperatorDropdown()">
+                <div class="operator-avatar-small">{{ session.operator_full_name[0] if session.operator_full_name else session.operator_name[0] }}</div>
+                <div class="operator-details">
+                    <div class="operator-fullname">{{ session.operator_full_name or session.operator_name or 'Оператор' }}</div>
+                </div>
+            </div>
+
+            <!-- Выпадающее меню оператора -->
+            <div class="operator-dropdown-menu" id="operatorDropdownMenu">
+                <div class="dropdown-header">
+                    <div class="dropdown-fullname">{{ session.operator_full_name or session.operator_name }}</div>
+                    <div class="dropdown-role">{{ session.operator_post or 'Оператор технической поддержки' }}</div>
+                </div>
+                <a href="{{ url_for('operator_profile') }}" class="dropdown-item">
+                    👤 Мой профиль
+                </a>
+                <a href="{{ url_for('operator_dashboard') }}" class="dropdown-item">
+                    📋 Заявки
+                </a>
+                <div class="dropdown-divider"></div>
+                <a href="{{ url_for('operator_logout') }}" class="dropdown-item">
+                    🚪 Выйти
+                </a>
+            </div>
+            {% else %}
+            <div class="operator-guest">
+                <a href="{{ url_for('operator_login') }}" class="btn btn-outline btn-sm">🔑 Вход</a>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- ЦЕНТРАЛЬНАЯ ЧАСТЬ: Логотип -->
+        <div class="nav-center">
+            <div class="logo" onclick="window.location.href='{{ url_for('operator_dashboard') if session.operator_logged_in else url_for('operator_login') }}'">
+                <h2>🎫 ВРКБ.IT-оператор</h2>
+            </div>
+        </div>
+
+        <!-- ПРАВАЯ ЧАСТЬ: Режим оператора и тема -->
+        <div class="nav-right">
+            <div class="mode-badge">
+                <span class="mode-icon">👨‍💼</span>
+                <span class="mode-text">Режим оператора</span>
+            </div>
+            <button class="theme-toggle" onclick="toggleTheme()" id="themeToggleBtn">🌙</button>
+        </div>
+    </div>
+</nav>
+
+<div class="container fade-in">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div class="alert alert-{{ category }} fade-in">
+        {{ message }}
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+</div>
+
+<style>
+    /* Левая часть - информация об операторе */
+    .nav-left {
+        flex: 1;
+        display: flex;
+        justify-content: flex-start;
+        min-width: 180px;
+    }
+
+    .operator-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: rgba(102, 126, 234, 0.1);
+        padding: 6px 16px;
+        border-radius: 50px;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+
+    .operator-info:hover {
+        background: rgba(102, 126, 234, 0.2);
+        transform: translateY(-1px);
+    }
+
+    .operator-avatar-small {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--accent-color), #764ba2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 600;
+        font-size: 14px;
+        border: 2px solid rgba(255,255,255,0.3);
+    }
+
+    .operator-details {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .operator-fullname {
+        font-weight: 600;
+        font-size: 14px;
+        color: var(--text-primary);
+        line-height: 1.3;
+    }
+
+    .operator-role {
+        font-size: 11px;
+        color: var(--text-muted);
+    }
+
+    /* Центральная часть - логотип */
+    .nav-center {
+        flex: 0 1 auto;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .logo {
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-align: center;
+    }
+
+    .logo:hover {
+        transform: scale(1.02);
+    }
+
+    .logo h2 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        background: linear-gradient(135deg, var(--accent-color), #764ba2);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        letter-spacing: -0.5px;
+    }
+
+    /* Правая часть - режим и тема */
+    .nav-right {
+        flex: 1;
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 15px;
+        min-width: 180px;
+    }
+
+    .mode-badge {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(102, 126, 234, 0.15);
+        border: 1px solid rgba(102, 126, 234, 0.3);
+        border-radius: 40px;
+        padding: 6px 16px;
+    }
+
+    .mode-icon {
+        font-size: 18px;
+    }
+
+    .mode-text {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--accent-color);
+    }
+
+    .theme-toggle {
+        background: rgba(102, 126, 234, 0.15);
+        border: 1px solid rgba(102, 126, 234, 0.3);
+        border-radius: 30px;
+        width: 40px;
+        height: 40px;
+        cursor: pointer;
+        font-size: 18px;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .theme-toggle:hover {
+        background: rgba(102, 126, 234, 0.25);
+        transform: rotate(15deg);
+    }
+
+    .operator-guest {
+        display: flex;
+        gap: 10px;
+    }
+
+    .btn-sm {
+        padding: 6px 16px;
+        font-size: 13px;
+    }
+
+    /* Выпадающее меню оператора */
+    .operator-dropdown-menu {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        margin-top: 8px;
+        background: var(--glass-bg);
+        backdrop-filter: blur(var(--blur-amount));
+        border-radius: 20px;
+        border: 1px solid var(--glass-border);
+        box-shadow: var(--shadow-lg);
+        min-width: 260px;
+        z-index: 200;
+        overflow: hidden;
+        animation: fadeInDown 0.2s ease;
+        display: none;
+    }
+
+    .operator-dropdown-menu.show {
+        display: block;
+    }
+
+    .dropdown-header {
+        padding: 16px;
+        border-bottom: 1px solid var(--glass-border);
+    }
+
+    .dropdown-fullname {
+        font-weight: 600;
+        font-size: 15px;
+        margin-bottom: 4px;
+        color: var(--text-primary);
+    }
+
+    .dropdown-role {
+        font-size: 11px;
+        color: var(--text-muted);
+    }
+
+    .dropdown-divider {
+        height: 1px;
+        background: var(--glass-border);
+        margin: 8px 0;
+    }
+
+    .dropdown-item {
+        padding: 12px 16px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        text-decoration: none;
+        color: var(--text-primary);
+        transition: all 0.2s ease;
+        font-size: 14px;
+    }
+
+    .dropdown-item:hover {
+        background: rgba(102, 126, 234, 0.1);
+    }
+
+    @keyframes fadeInDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* Адаптивность для мобильных */
+    @media (max-width: 768px) {
+        .navbar .container {
+            flex-direction: column;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .nav-left, .nav-center, .nav-right {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .operator-fullname {
+            font-size: 12px;
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .operator-details {
+            display: none;
+        }
+
+        .operator-avatar-small {
+            font-size: 28px;
+        }
+
+        .logo h2 {
+            font-size: 1.1rem;
+        }
+
+        .mode-text {
+            display: none;
+        }
+
+        .mode-badge {
+            padding: 6px 12px;
+        }
+    }
+</style>
+
+<script>
+    function toggleTheme() {
+        const html = document.documentElement;
+        const currentTheme = html.getAttribute('data-theme');
+        const btn = document.getElementById('themeToggleBtn');
+
+        if (currentTheme === 'dark') {
+            html.removeAttribute('data-theme');
+            localStorage.setItem('theme', 'light');
+            btn.textContent = '🌙';
+        } else {
+            html.setAttribute('data-theme', 'dark');
+            localStorage.setItem('theme', 'dark');
+            btn.textContent = '☀️';
+        }
+    }
+
+    function toggleOperatorDropdown() {
+        const dropdown = document.getElementById('operatorDropdownMenu');
+        if (dropdown) {
+            dropdown.classList.toggle('show');
+        }
+    }
+
+    // Закрыть меню при клике вне его
+    document.addEventListener('click', function(event) {
+        const dropdown = document.getElementById('operatorDropdownMenu');
+        const info = document.querySelector('.operator-info');
+
+        if (dropdown && info && !info.contains(event.target) && !dropdown.contains(event.target)) {
+            dropdown.classList.remove('show');
+        }
+    });
+
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        const btn = document.getElementById('themeToggleBtn');
+        if (btn) btn.textContent = '☀️';
+    }
+</script>
+</body>
+</html>

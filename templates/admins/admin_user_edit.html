@@ -1,0 +1,93 @@
+{% extends "admins/base_admin.html" %}
+
+{% block title %}Редактирование пользователя{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 600px; margin: 0 auto;">
+    <h2 style="text-align: center; margin-bottom: 30px;">✏️ Редактирование пользователя</h2>
+
+    <form method="POST">
+        <div class="form-group">
+            <label>👤 Логин</label>
+            <input type="text" class="form-control" value="{{ user.username }}" disabled readonly>
+            <small class="text-muted">Логин нельзя изменить</small>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>📝 Фамилия</label>
+                <input type="text" name="last_name" class="form-control" value="{{ user.last_name or '' }}" required>
+            </div>
+
+            <div class="form-group">
+                <label>📝 Имя</label>
+                <input type="text" name="first_name" class="form-control" value="{{ user.first_name or '' }}" required>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>📝 Отчество</label>
+            <input type="text" name="middle_name" class="form-control" value="{{ user.middle_name or '' }}">
+        </div>
+
+        <div class="form-group">
+            <label>📧 Email</label>
+            <input type="email" name="email" class="form-control" value="{{ user.email or '' }}" required>
+        </div>
+
+        <div class="form-group">
+            <label>💼 Должность</label>
+            <select name="post" class="form-control" required>
+                <option value="Врач-терапевт" {% if user.post == 'Врач-терапевт' %}selected{% endif %}>👨‍⚕️ Врач-терапевт</option>
+                <option value="Врач-хирург" {% if user.post == 'Врач-хирург' %}selected{% endif %}>👨‍⚕️ Врач-хирург</option>
+                <option value="Врач-педиатр" {% if user.post == 'Врач-педиатр' %}selected{% endif %}>👨‍⚕️ Врач-педиатр</option>
+                <option value="Медицинская сестра" {% if user.post == 'Медицинская сестра' %}selected{% endif %}>👩‍⚕️ Медицинская сестра</option>
+                <option value="Администратор" {% if user.post == 'Администратор' %}selected{% endif %}>📋 Администратор</option>
+                <option value="IT-специалист" {% if user.post == 'IT-специалист' %}selected{% endif %}>💻 IT-специалист</option>
+                <option value="Другое" {% if user.post == 'Другое' %}selected{% endif %}>📝 Другое</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>📱 Телефон</label>
+            <input type="tel" name="phone" class="form-control" value="{{ user.phone or '' }}" required placeholder="79012345678">
+            <small class="text-muted">Только цифры, первая цифра 7 или 8</small>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>📅 Дата регистрации</label>
+                <input type="text" class="form-control" value="{{ user.created_at[:16] if user.created_at else '-' }}" disabled readonly>
+            </div>
+        </div>
+
+        <hr>
+
+        <div class="action-buttons">
+            <button type="submit" class="btn btn-primary">💾 Сохранить изменения</button>
+            <a href="{{ url_for('admin_users') }}" class="btn btn-outline">← Отмена</a>
+        </div>
+    </form>
+</div>
+
+<style>
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 15px;
+        margin-top: 20px;
+    }
+
+    @media (max-width: 768px) {
+        .form-row {
+            grid-template-columns: 1fr;
+            gap: 15px;
+        }
+    }
+</style>
+{% endblock %}

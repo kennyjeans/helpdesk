@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block title %}Создание заявки{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>📝 Создание заявки в техподдержку</h2>
+
+    <form method="POST" id="ticketForm">
+        <!-- Скрытое поле для subject (будет заполняться из description) -->
+        <input type="hidden" name="subject" id="subjectField">
+
+        <!-- Категория -->
+        <div class="form-group">
+            <label>🔧 Категория проблемы</label>
+            <select name="category" id="category" class="form-control" required>
+                <option value="">-- Выберите категорию --</option>
+                <option value="IT">💻 IT (компьютеры, программы, принтеры, ЕМИАС, ЭЦП)</option>
+                <option value="MED">🏥 Медицинское оборудование (аппараты, приборы)</option>
+            </select>
+        </div>
+
+        <!-- IT подкатегории -->
+        <div id="itFields" style="display: none;">
+            <div class="form-group">
+                <label>🖥️ Тип проблемы</label>
+                <select name="problem_type" id="problemType" class="form-control">
+                    <option value="">-- Выберите тип --</option>
+                    <option value="emiac">ЕМИАС</option>
+                    <option value="tech">Техника (компьютеры, интернет, системы)</option>
+                    <option value="printer">Принтер</option>
+                    <option value="other">Другое (ЭЦП, программы, общие вопросы)</option>
+                </select>
+            </div>
+
+            <!-- Поля для принтера -->
+            <div id="printerFields" style="display: none;">
+                <div class="form-group">
+                    <label>🏭 Производитель принтера</label>
+                    <select name="printer_manufacturer" class="form-control">
+                        <option value="">-- Выберите производителя --</option>
+                        <option value="HP">HP</option>
+                        <option value="Canon">Canon</option>
+                        <option value="Kyocera">Kyocera</option>
+                        <option value="Brother">Brother</option>
+                        <option value="Pantum">Pantum</option>
+                        <option value="Xerox">Xerox</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>🖨️ Модель принтера</label>
+                    <input type="text" name="printer_model" class="form-control" placeholder="Например: HP LaserJet Pro M428dw">
+                </div>
+
+                <div class="form-group">
+                    <label>⚠️ Проблема с принтером</label>
+                    <select name="printer_problem" class="form-control">
+                        <option value="">-- Выберите проблему --</option>
+                        <option value="cartridge">Закончился картридж</option>
+                        <option value="stripes">Черные полосы на бумаге</option>
+                        <option value="stopped">Принтер печатал раньше, сейчас нет</option>
+                        <option value="not_work">Принтер вообще не печатает</option>
+                        <option value="other">Другое</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Поле для ID ассистента -->
+            <div id="assistantIdField" style="display: none;">
+                <div class="form-group">
+                    <label>🆔 ID ассистента</label>
+                    <input type="text" name="assistant_id" class="form-control" placeholder="9 цифр (например: 123456789)">
+                    <small class="text-muted">ID находится в программе "Ассистент" на вашем компьютере</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- MED подкатегории -->
+        <div id="medFields" style="display: none;">
+            <div class="form-group">
+                <label>🏥 Тип обращения</label>
+                <select name="problem_type" class="form-control">
+                    <option value="">-- Выберите тип --</option>
+                    <option value="repair">🔧 Ремонт</option>
+                    <option value="metrology">📏 Метрология</option>
+                    <option value="commissioning">🚀 Ввод оборудования в эксплуатацию</option>
+                    <option value="common">❓ Общие вопросы</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Общие поля -->
+        <div class="form-group">
+            <label>📍 Местоположение</label>
+            <select name="location" class="form-control" required>
+                <option value="">-- Выберите местоположение --</option>
+                <option value="main">Видновская РКБ</option>
+                <option value="polyclinic1">Видновская поликлиника №1</option>
+                <option value="polyclinic3">Видновская поликлиника №3</option>
+                <option value="children">Детская поликлиника</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>🚪 Номер кабинета/поста</label>
+            <input type="text" name="office" class="form-control" required placeholder="125 каб / Ординаторская 1ХО / 2пост 3ХО">
+        </div>
+
+        <div class="form-group">
+            <label>💬 Описание проблемы</label>
+            <textarea name="description" id="descriptionTextarea" rows="5" class="form-control" required
+                      placeholder="Подробно опишите проблему..."></textarea>
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+            <button type="submit" class="btn btn-primary">📤 Отправить заявку</button>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-outline">↩️ Отмена</a>
+        </div>
+    </form>
+</div>
+
+<script>
+    // ПОЛУЧАЕМ ВСЕ НЕОБХОДИМЫЕ ЭЛЕМЕНТЫ
+    const descriptionField = document.getElementById('descriptionTextarea');
+    const subjectField = document.getElementById('subjectField');
+    const categorySelect = document.getElementById('category');
+    const itFields = document.getElementById('itFields');
+    const medFields = document.getElementById('medFields');
+    const problemType = document.getElementById('problemType');
+    const printerFields = document.getElementById('printerFields');
+    const assistantIdField = document.getElementById('assistantIdField');
+    const form = document.getElementById('ticketForm');
+
+    // 1. АВТОЗАПОЛНЕНИЕ SUBJECT ИЗ DESCRIPTION
+    if (descriptionField && subjectField) {
+        descriptionField.addEventListener('input', function() {
+            let text = this.value.trim();
+            if (text.length > 50) {
+                subjectField.value = text.substring(0, 50) + '...';
+            } else {
+                subjectField.value = text;
+            }
+            if (subjectField.value === '') {
+                subjectField.value = 'Заявка в техподдержку';
+            }
+        });
+    }
+
+    // 2. ОБРАБОТКА КАТЕГОРИЙ
+    if (categorySelect) {
+        categorySelect.addEventListener('change', function() {
+            console.log('Категория выбрана:', this.value); // Для отладки
+
+            if (this.value === 'IT') {
+                if (itFields) itFields.style.display = 'block';
+                if (medFields) medFields.style.display = 'none';
+            } else if (this.value === 'MED') {
+                if (itFields) itFields.style.display = 'none';
+                if (medFields) medFields.style.display = 'block';
+            } else {
+                if (itFields) itFields.style.display = 'none';
+                if (medFields) medFields.style.display = 'none';
+            }
+        });
+    }
+
+    // 3. ОБРАБОТКА ТИПА ПРОБЛЕМЫ (ДЛЯ IT)
+    if (problemType) {
+        problemType.addEventListener('change', function() {
+            console.log('Тип проблемы выбран:', this.value); // Для отладки
+
+            if (this.value === 'printer') {
+                if (printerFields) printerFields.style.display = 'block';
+                if (assistantIdField) assistantIdField.style.display = 'none';
+            } else if (this.value === 'other') {
+                if (printerFields) printerFields.style.display = 'none';
+                if (assistantIdField) assistantIdField.style.display = 'block';
+            } else {
+                if (printerFields) printerFields.style.display = 'none';
+                if (assistantIdField) assistantIdField.style.display = 'none';
+            }
+        });
+    }
+
+    // 4. ОЧИСТКА ОПИСАНИЯ ПЕРЕД ОТПРАВКОЙ
+    if (form && descriptionField) {
+        form.addEventListener('submit', function(e) {
+            let text = descriptionField.value;
+
+            // Удаляем все пробельные символы в начале и конце
+            text = text.replace(/^[\s\n\r\t]+/, '');
+            text = text.replace(/[\s\n\r\t]+$/, '');
+            // Заменяем множественные переносы на один
+            text = text.replace(/\n\s*\n/g, '\n');
+            // Удаляем пробелы в начале каждой строки
+            text = text.replace(/^[ \t]+/gm, '');
+            // Удаляем пустые строки
+            text = text.replace(/\n+/g, '\n').trim();
+
+            descriptionField.value = text;
+
+            // Если после очистки текст пустой, показываем ошибку
+            if (text === '') {
+                e.preventDefault();
+                alert('Пожалуйста, опишите вашу проблему');
+            }
+        });
+    }
+</script>
+{% endblock %}

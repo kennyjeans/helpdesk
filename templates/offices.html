@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Кабинеты IT-отдела{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>🚪 Кабинеты IT-отдела по зданиям</h2>
+
+    <div style="margin: 30px 0;">
+        <ul style="list-style: none; padding: 0;">
+            <li style="padding: 10px; border-bottom: 1px solid #eee;">
+                <strong>📍 Видновская районная клиническая больница</strong><br>
+                19 кабинет - подвал
+            </li>
+            <li style="padding: 10px; border-bottom: 1px solid #eee;">
+                <strong>📍 Видновская поликлиника №1</strong><br>
+                110 кабинет - 1 этаж
+            </li>
+            <li style="padding: 10px; border-bottom: 1px solid #eee;">
+                <strong>📍 Видновская поликлиника №3</strong><br>
+                623 кабинет - 6 этаж
+            </li>
+            <li style="padding: 10px; border-bottom: 1px solid #eee;">
+                <strong>📍 Детская поликлиника</strong><br>
+                ИТ кабинет - 3 этаж
+            </li>
+        </ul>
+    </div>
+
+    <div class="alert alert-info">
+        📌 Первая цифра номера кабинета - этаж - местоположение.
+    </div>
+
+    <a href="{{ url_for('index') }}" class="btn btn-outline">← Назад в меню</a>
+</div>
+{% endblock %}

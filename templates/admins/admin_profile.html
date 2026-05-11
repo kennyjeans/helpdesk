@@ -1,0 +1,83 @@
+{% extends "admins/base_admin.html" %}
+
+{% block title %}Профиль администратора{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 500px; margin: 0 auto;">
+    <div style="text-align: center; margin-bottom: 30px;">
+        <div class="admin-avatar" style="width: 100px; height: 100px; font-size: 48px; margin: 0 auto 15px; background: linear-gradient(135deg, var(--accent-color), #764ba2); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+            👑
+        </div>
+        <h2>{{ admin.last_name or '' }} {{ admin.first_name or '' }} {{ admin.middle_name or '' }}</h2>
+        <p class="text-muted">@{{ admin.username }}</p>
+    </div>
+
+    <div class="profile-info">
+        <div class="info-row">
+            <div class="info-icon">👤</div>
+            <div class="info-content">
+                <div class="info-label">Логин</div>
+                <div class="info-value">{{ admin.username }}</div>
+            </div>
+        </div>
+
+        <div class="info-row">
+            <div class="info-icon">📧</div>
+            <div class="info-content">
+                <div class="info-label">Email</div>
+                <div class="info-value">{{ admin.email or 'не указан' }}</div>
+            </div>
+        </div>
+
+        <div class="info-row">
+            <div class="info-icon">📅</div>
+            <div class="info-content">
+                <div class="info-label">Дата регистрации</div>
+                <div class="info-value">{{ admin.created_at[:16] if admin.created_at else '-' }}</div>
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <div style="text-align: center;">
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline">← Назад</a>
+    </div>
+</div>
+
+<style>
+    .profile-info {
+        margin: 20px 0;
+    }
+
+    .info-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 15px;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--glass-border);
+    }
+
+    .info-icon {
+        font-size: 20px;
+        width: 40px;
+        text-align: center;
+    }
+
+    .info-content {
+        flex: 1;
+    }
+
+    .info-label {
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-bottom: 4px;
+    }
+
+    .info-value {
+        font-size: 16px;
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+</style>
+{% endblock %}

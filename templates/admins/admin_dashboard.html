@@ -1,0 +1,168 @@
+{% extends "admins/base_admin.html" %}
+
+{% block title %}Главная панель{% endblock %}
+
+{% block content %}
+<h2>📊 Панель управления</h2>
+<p class="text-muted">Добро пожаловать в панель администратора!</p>
+
+<!-- Статистика -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon">👥</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ total_users }}</div>
+            <div class="stat-label">Пользователей</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">👨‍💼</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ total_operators }}</div>
+            <div class="stat-label">Операторов</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">📋</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ total_tickets }}</div>
+            <div class="stat-label">Всего заявок</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">🆕</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ new_tickets }}</div>
+            <div class="stat-label">Новых</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">⚙️</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ in_progress }}</div>
+            <div class="stat-label">В работе</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">✅</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ resolved }}</div>
+            <div class="stat-label">Решенных</div>
+        </div>
+    </div>
+</div>
+
+<!-- Последние заявки -->
+<div class="card" style="margin-top: 20px;">
+    <h3>📋 Последние заявки</h3>
+    <div class="table-responsive">
+        <table class="admin-table">
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>Пользователь</th>
+                <th>Категория</th>
+                <th>Описание</th>
+                <th>Статус</th>
+                <th>Создана</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for ticket in recent_tickets %}
+            <tr>
+                <td>#{{ ticket.id }}</td>
+                <td>{{ ticket.last_name }} {{ ticket.first_name }}</td>
+                <td>{{ ticket.category }}</td>
+                <td class="ticket-desc-preview">{{ ticket.description[:50] }}...</td>
+                <td>
+                        <span class="status-badge status-{{ ticket.status }}">
+                            {% if ticket.status == 'new' %}🆕 Новая
+                            {% elif ticket.status == 'in_progress' %}⚙️ В работе
+                            {% elif ticket.status == 'resolved' %}✅ Решена
+                            {% else %}📦 Закрыта{% endif %}
+                        </span>
+                </td>
+                <td>{{ ticket.created_at[:16] }}</td>
+                <td>
+                    <a href="{{ url_for('admin_ticket_delete', ticket_id=ticket.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Удалить заявку?')">🗑️</a>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<style>
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 20px;
+        margin: 30px 0;
+    }
+
+    .stat-card {
+        background: var(--glass-bg);
+        backdrop-filter: blur(var(--blur-amount));
+        border-radius: 20px;
+        padding: 20px;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        border: 1px solid var(--glass-border);
+        transition: all 0.3s ease;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-3px);
+        box-shadow: var(--shadow-md);
+    }
+
+    .stat-icon {
+        font-size: 40px;
+    }
+
+    .stat-info {
+        flex: 1;
+    }
+
+    .stat-value {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--accent-color);
+    }
+
+    .stat-label {
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+    .admin-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .admin-table th,
+    .admin-table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid var(--glass-border);
+    }
+
+    .ticket-desc-preview {
+        max-width: 200px;
+        word-break: break-word;
+    }
+
+    @media (max-width: 768px) {
+        .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .stat-value {
+            font-size: 22px;
+        }
+    }
+</style>
+{% endblock %}
