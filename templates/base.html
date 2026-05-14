@@ -19,14 +19,17 @@
                 <div class="user-avatar">
                     {{ session.full_name[0] if session.full_name else session.username[0] }}
                 </div>
-                <span class="user-name">{{ session.full_name[:25] if session.full_name else session.username }}</span>
+                <span class="user-name">{{ session.full_name if session.full_name else session.username }}</span>
             </div>
 
             <!-- Выпадающее меню профиля -->
             <div class="profile-dropdown" id="profileDropdown">
                 <div class="dropdown-header">
-                    <div class="dropdown-fullname">{{ session.full_name }}</div>
-                    <div class="dropdown-email">{{ user.email }}</div>
+                    <div class="dropdown-fullname">{{ user.full_name if user.full_name else session.full_name }}</div>
+                    <div class="dropdown-email">{{ user.email if user.email else session.user_email }}</div>
+                    {% if user.department %}
+                    <div class="dropdown-department">{{ user.department }}</div>
+                    {% endif %}
                 </div>
                 <a href="{{ url_for('profile') }}" class="dropdown-item">
                     👤 Мой профиль

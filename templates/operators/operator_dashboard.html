@@ -3,8 +3,66 @@
 {% block title %}Панель оператора{% endblock %}
 
 {% block content %}
+<!-- Статистика -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon">📋</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ total_tickets }}</div>
+            <div class="stat-label">Всего заявок</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">🆕</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ new_tickets }}</div>
+            <div class="stat-label">Новых</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">⚙️</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ in_progress }}</div>
+            <div class="stat-label">В работе</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">✅</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ resolved }}</div>
+            <div class="stat-label">Решенных</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">📅</div>
+        <div class="stat-info">
+            <div class="stat-value">{{ tickets_today }}</div>
+            <div class="stat-label">За сегодня</div>
+        </div>
+    </div>
+</div>
+
+<!-- Статистика оператора (заявки) -->
+<div class="my-stats">
+    <h3>👨‍💼 Заявки</h3>
+    <div class="stats-grid-small">
+        <div class="stat-card-small">
+            <div class="stat-value-small">{{ my_tickets }}</div>
+            <div class="stat-label-small">Всего назначено</div>
+        </div>
+        <div class="stat-card-small">
+            <div class="stat-value-small stat-warning">{{ my_in_progress }}</div>
+            <div class="stat-label-small">В работе</div>
+        </div>
+        <div class="stat-card-small">
+            <div class="stat-value-small stat-success">{{ my_resolved }}</div>
+            <div class="stat-label-small">Решено</div>
+        </div>
+    </div>
+</div>
+
 <div class="dashboard-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 20px;">
-    <h2>📊 Все заявки</h2>
+    <h2>📊 Список заявок</h2>
 </div>
 
 <!-- Фильтры -->
@@ -24,19 +82,21 @@
             <th>Заявитель</th>
             <th>Категория</th>
             <th>Описание</th>
+            <th>Приоритет</th>
             <th>Статус</th>
             <th>Создана</th>
             <th>⏱️ Время</th>
             <th>Исполнитель</th>
+            <th>Назначить</th>
             <th></th>
         </tr>
         </thead>
         <tbody>
         {% for ticket in tickets %}
-        <tr class="ticket-row">
+        <tr class="ticket-row priority-{{ ticket.priority }}">
             <td class="ticket-id">#{{ ticket.id }}</td>
             <td class="ticket-user">
-                <strong>{{ ticket.last_name }} {{ ticket.first_name }} {{ ticket.middle_name }}</strong><br>
+                <strong>{{ ticket.last_name }} {{ ticket.first_name }} {{ ticket.middle_name or '' }}</strong><br>
                 <small class="text-muted">{{ ticket.post }}</small>
             </td>
             <td class="ticket-category">
@@ -46,6 +106,13 @@
             </td>
             <td class="ticket-desc">
                 {{ ticket.description[:80] }}{% if ticket.description|length > 80 %}...{% endif %}
+            </td>
+            <td class="ticket-priority">
+                <span class="priority-badge priority-{{ ticket.priority }}">
+                    {% if ticket.priority == 'high' %}🔴 Высокий
+                    {% elif ticket.priority == 'medium' %}🟡 Средний
+                    {% else %}🟢 Низкий{% endif %}
+                </span>
             </td>
             <td class="ticket-status">
                 <span class="status-badge status-{{ ticket.status }}">
@@ -62,13 +129,13 @@
                 {% else %}
                 {% if ticket.hours_since_created %}
                 {% set hours = ticket.hours_since_created|float %}
-                {% if hours < 1 %}
-                {% set minutes = (hours * 60)|int %}
-                <span class="timer-new">🟢 {{ minutes }} мин.</span>
-                {% elif hours < 24 %}
-                <span class="timer-warning">🟡 {{ hours|int }} ч.</span>
+                {% set days = (hours / 24)|int %}
+                {% if days < 3 %}
+                <span class="timer-new">🟢 {{ days }} дн.</span>
+                {% elif days < 7 %}
+                <span class="timer-warning">🟡 {{ days }} дн.</span>
                 {% else %}
-                <span class="timer-danger">🔴 {{ (hours / 24)|int }} дн.</span>
+                <span class="timer-danger">🔴 {{ days }} дн.</span>
                 {% endif %}
                 {% else %}
                 <span class="text-muted">—</span>
@@ -82,6 +149,18 @@
                 <span class="text-muted">—</span>
                 {% endif %}
             </td>
+            <td class="ticket-assign">
+                <form method="POST" action="{{ url_for('assign_operator', ticket_id=ticket.id) }}" style="display: inline;">
+                    <select name="assigned_to" class="assign-select" onchange="this.form.submit()">
+                        <option value="">-- Назначить --</option>
+                        {% for operator in operators %}
+                        <option value="{{ operator.id }}" {% if ticket.assigned_to == operator.id %}selected{% endif %}>
+                            👨‍💻 {{ operator.last_name }} {{ operator.first_name|first if operator.first_name else '' }}.
+                        </option>
+                        {% endfor %}
+                    </select>
+                </form>
+            </td>
             <td class="ticket-action">
                 <a href="{{ url_for('operator_ticket', ticket_id=ticket.id) }}" class="btn btn-sm btn-primary">
                     {% if ticket.status == 'new' %}📝 Принять{% elif ticket.status == 'in_progress' %}✏️ Редактировать{% else %}📋 Просмотр{% endif %}
@@ -90,7 +169,7 @@
         </tr>
         {% else %}
         <tr>
-            <td colspan="9" style="text-align: center; padding: 40px;">
+            <td colspan="11" style="text-align: center; padding: 40px;">
                 <div style="font-size: 48px;">📭</div>
                 <p>Заявок не найдено</p>
             </td>
@@ -101,6 +180,100 @@
 </div>
 
 <style>
+    /* Статистика */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 15px;
+        margin-bottom: 25px;
+    }
+
+    .stat-card {
+        background: var(--glass-bg);
+        backdrop-filter: blur(var(--blur-amount));
+        border-radius: 20px;
+        padding: 15px 20px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border: 1px solid var(--glass-border);
+        transition: all 0.3s ease;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-3px);
+        box-shadow: var(--shadow-md);
+    }
+
+    .stat-icon {
+        font-size: 32px;
+    }
+
+    .stat-info {
+        flex: 1;
+    }
+
+    .stat-value {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--accent-color);
+        line-height: 1.2;
+    }
+
+    .stat-label {
+        font-size: 11px;
+        color: var(--text-muted);
+    }
+
+    /* Моя статистика */
+    .my-stats {
+        background: var(--glass-bg);
+        backdrop-filter: blur(var(--blur-amount));
+        border-radius: 20px;
+        padding: 15px 20px;
+        margin-bottom: 25px;
+        border: 1px solid var(--glass-border);
+    }
+
+    .my-stats h3 {
+        margin: 0 0 15px 0;
+        font-size: 16px;
+        color: var(--accent-color);
+    }
+
+    .stats-grid-small {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 15px;
+    }
+
+    .stat-card-small {
+        text-align: center;
+        padding: 12px;
+        background: rgba(102, 126, 234, 0.05);
+        border-radius: 16px;
+    }
+
+    .stat-value-small {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--accent-color);
+    }
+
+    .stat-value-small.stat-warning {
+        color: #f59e0b;
+    }
+
+    .stat-value-small.stat-success {
+        color: #10b981;
+    }
+
+    .stat-label-small {
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-top: 5px;
+    }
+
     .active {
         background: linear-gradient(135deg, var(--accent-color), #764ba2);
         color: white;
@@ -121,7 +294,6 @@
         white-space: nowrap;
     }
 
-    /* СТИЛИ ДЛЯ ПРАВИЛЬНОГО ПЕРЕНОСА ТЕКСТА */
     .ticket-user {
         max-width: 180px;
         word-break: break-word;
@@ -133,19 +305,18 @@
     }
 
     .ticket-desc {
-        max-width: 300px;
+        max-width: 250px;
         word-break: break-word;
         white-space: normal;
         line-height: 1.4;
         color: var(--text-secondary);
         font-size: 13px;
+        overflow-wrap: break-word;
+        word-break: break-all;
     }
 
-    /* Перенос длинных URL и слов */
-    .ticket-desc {
-        overflow-wrap: break-word;
-        word-wrap: break-word;
-        hyphens: auto;
+    .ticket-priority {
+        white-space: nowrap;
     }
 
     .ticket-status {
@@ -168,8 +339,49 @@
         white-space: nowrap;
     }
 
+    .ticket-assign {
+        white-space: nowrap;
+    }
+
     .ticket-action {
         white-space: nowrap;
+    }
+
+    .assign-select {
+        padding: 5px 8px;
+        border-radius: 8px;
+        border: 1px solid var(--glass-border);
+        background: var(--glass-bg);
+        color: var(--text-primary);
+        font-size: 12px;
+        cursor: pointer;
+    }
+
+    .assign-select:hover {
+        border-color: var(--accent-color);
+    }
+
+    .priority-badge {
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 600;
+        display: inline-block;
+    }
+
+    .priority-high {
+        background: rgba(239, 68, 68, 0.15);
+        color: #ef4444;
+    }
+
+    .priority-medium {
+        background: rgba(245, 158, 11, 0.15);
+        color: #f59e0b;
+    }
+
+    .priority-low {
+        background: rgba(16, 185, 129, 0.15);
+        color: #10b981;
     }
 
     .timer-new {
@@ -187,22 +399,33 @@
         font-weight: 600;
     }
 
-    /* Для очень длинных слов (например, URL) */
-    .ticket-desc {
-        word-break: break-all;
-    }
-
     @media (max-width: 768px) {
-        .ticket-date, .ticket-timer, .ticket-operator, .ticket-category {
+        .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .stats-grid-small {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .ticket-date, .ticket-timer, .ticket-operator, .ticket-category, .ticket-assign, .ticket-priority {
             white-space: normal;
         }
 
         .ticket-desc {
-            max-width: 200px;
+            max-width: 150px;
         }
 
         .ticket-user {
-            max-width: 120px;
+            max-width: 100px;
+        }
+
+        .stat-value {
+            font-size: 20px;
+        }
+
+        .stat-value-small {
+            font-size: 22px;
         }
     }
 </style>

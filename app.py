@@ -4,9 +4,10 @@ from datetime import datetime
 import hashlib
 import os
 import re
+import pandas as pd
 
 app = Flask(__name__)
-app.secret_key = 'your-secret-key-change-this-in-production-12345'
+app.secret_key = 'mysecretkey_vrkb_System210101'
 
 
 # ===================== ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ =====================
@@ -21,6 +22,52 @@ def init_db():
 
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
+
+    # функции comments:
+    c.execute('''CREATE TABLE IF NOT EXISTS comments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ticket_id INTEGER NOT NULL,
+        user_id INTEGER,
+        operator_id INTEGER,
+        comment TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        is_read INTEGER DEFAULT 0,
+        FOREIGN KEY (ticket_id) REFERENCES tickets (id),
+        FOREIGN KEY (user_id) REFERENCES users (id),
+        FOREIGN KEY (operator_id) REFERENCES operators (id)
+    )''')
+    print("✅ Создана таблица comments")
+
+    # функция answer_templates:
+    c.execute('''CREATE TABLE IF NOT EXISTS answer_templates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        category TEXT,
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )''')
+
+    # Добавьте тестовые шаблоны
+    c.execute("SELECT COUNT(*) FROM answer_templates")
+    if c.fetchone()[0] == 0:
+        templates = [
+            ('Проблема с ЕМИАС', 'IT',
+             'Здравствуйте! По проблеме с ЕМИАС рекомендуем:\n1. Очистить кэш браузера\n2. Проверить интернет-соединение\n3. Перезагрузить компьютер\nЕсли проблема не решилась, свяжитесь с нами повторно.'),
+            ('Проблема с принтером', 'IT',
+             'Здравствуйте! По проблеме с принтером:\n1. Проверьте подключение к сети\n2. Перезагрузите принтер\n3. Проверьте наличие бумаги и картриджа\nЕсли не помогло, вызовем мастера.'),
+            ('Проблема с ЭЦП', 'IT',
+             'Здравствуйте! По проблеме с ЭЦП:\n1. Проверьте срок действия сертификата\n2. Переустановите КриптоПро\n3. Обратитесь в IT-отдел для перенастройки'),
+            ('Проблема с интернетом', 'IT',
+             'Здравствуйте! Проверьте:\n1. Кабели подключения\n2. Перезагрузите роутер\n3. Проверьте настройки сети\nЕсли не работает - сообщите дополнительную информацию.'),
+            ('Медицинское оборудование', 'MED',
+             'Здравствуйте! Ваша заявка по медицинскому оборудованию принята. Специалист свяжется с вами в ближайшее время.'),
+            ('Общий ответ', 'common',
+             'Здравствуйте! Ваша заявка принята в работу. IT-отдел свяжется с вами в ближайшее время.'),
+        ]
+        for name, category, content in templates:
+            c.execute("INSERT INTO answer_templates (name, category, content, created_at) VALUES (?, ?, ?, ?)",
+                      (name, category, content, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        print("✅ Добавлены шаблоны ответов")
     # Таблица администраторов
     c.execute('''CREATE TABLE IF NOT EXISTS admins (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -43,7 +90,7 @@ def init_db():
              datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
         print("✅ Добавлен администратор: admin / admin123")
 
-    # Таблица пользователей
+    # Таблица пользователей (с добавленным department)
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
@@ -53,10 +100,17 @@ def init_db():
         first_name TEXT,
         middle_name TEXT,
         post TEXT,
+        department TEXT,
         phone TEXT,
         created_at TEXT NOT NULL,
         is_admin INTEGER DEFAULT 0
     )''')
+    # Добавляем колонку department для старых баз
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN department TEXT")
+        print("✅ Добавлена колонка department в таблицу users")
+    except sqlite3.OperationalError:
+        print("Колонка department уже существует")
 
     # Таблица заявок
     c.execute('''CREATE TABLE IF NOT EXISTS tickets (
@@ -290,14 +344,11 @@ def login():
 
         conn = get_db_connection()
 
-        # Проверяем, что ввел пользователь: логин или email
-        # Если есть @ - значит email, иначе логин
+        # Проверяем логин или email
         if '@' in username_or_email:
-            # Вход по email
             user = conn.execute('SELECT * FROM users WHERE email = ? AND password = ?',
                                 (username_or_email, hashed_pwd)).fetchone()
         else:
-            # Вход по логину
             user = conn.execute('SELECT * FROM users WHERE username = ? AND password = ?',
                                 (username_or_email, hashed_pwd)).fetchone()
 
@@ -306,7 +357,19 @@ def login():
         if user:
             session['user_id'] = user['id']
             session['username'] = user['username']
-            session['full_name'] = f"{user['last_name']} {user['first_name']} {user['middle_name'] or ''}"
+            # Полное ФИО (с отчеством)
+            full_name_parts = []
+            if user['last_name']:
+                full_name_parts.append(user['last_name'])
+            if user['first_name']:
+                full_name_parts.append(user['first_name'])
+            if user['middle_name']:
+                full_name_parts.append(user['middle_name'])
+            session['full_name'] = ' '.join(full_name_parts)
+            session['user_email'] = user['email']
+            session['user_post'] = user['post']
+            session['user_department'] = user['department']
+
             flash(f'Добро пожаловать, {session["full_name"]}!', 'success')
             return redirect(url_for('dashboard'))
         else:
@@ -501,6 +564,326 @@ def admin_user_edit(user_id):
     return render_template('admins/admin_user_edit.html', user=user)
 
 
+
+import io
+from werkzeug.utils import secure_filename
+
+# Разрешенные расширения файлов
+ALLOWED_EXTENSIONS = {'xlsx', 'xls', 'csv'}
+
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def normalize_phone(phone):
+    """Нормализация номера телефона"""
+    if not phone or phone == 'None':
+        return ''
+    # Удаляем все нецифровые символы
+    phone = re.sub(r'\D', '', str(phone))
+    # Приводим к формату 79xxxxxxxxx
+    if phone.startswith('8'):
+        phone = '7' + phone[1:]
+    if phone.startswith('7') and len(phone) == 11:
+        return phone
+    if len(phone) == 10:
+        return '7' + phone
+    return ''
+
+
+def generate_username(last_name, first_name, middle_name=''):
+    """Генерация логина: Фамилия + Инициалы (Имя + Отчество)"""
+    if not last_name or not first_name:
+        return None
+
+    # Транслитерация
+    translit = {
+        'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'e',
+        'ж': 'zh', 'з': 'z', 'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm',
+        'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 'у': 'u',
+        'ф': 'f', 'х': 'h', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'sch', 'ъ': '',
+        'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya'
+    }
+
+    # Транслитерируем фамилию (с заглавной буквы)
+    last_name_translit = ''
+    for i, char in enumerate(last_name.lower()):
+        trans = translit.get(char, char)
+        if i == 0:
+            trans = trans.upper() if trans else trans
+        last_name_translit += trans
+
+    # Инициал имени (первая буква, заглавная)
+    first_initial = ''
+    if first_name:
+        first_char = first_name[0].lower()
+        first_initial = translit.get(first_char, first_char).upper()
+
+    # Инициал отчества (первая буква, заглавная)
+    middle_initial = ''
+    if middle_name:
+        middle_char = middle_name[0].lower()
+        middle_initial = translit.get(middle_char, middle_char).upper()
+
+    # Формируем логин: Фамилия + ИнициалИмени + ИнициалОтчества
+    username = f"{last_name_translit}{first_initial}{middle_initial}"
+
+    # Убираем недопустимые символы
+    username = re.sub(r'[^a-zA-Z0-9]', '', username)
+
+    return username
+
+
+@app.route('/admin/users/import', methods=['POST'])
+@admin_required
+def import_users():
+    """Импорт пользователей из Excel/CSV"""
+    if 'file' not in request.files:
+        flash('Файл не выбран', 'danger')
+        return redirect(url_for('admin_users'))
+
+    file = request.files['file']
+    if file.filename == '':
+        flash('Файл не выбран', 'danger')
+        return redirect(url_for('admin_users'))
+
+    if not allowed_file(file.filename):
+        flash('Неподдерживаемый формат файла. Используйте .xlsx, .xls или .csv', 'danger')
+        return redirect(url_for('admin_users'))
+
+    try:
+        # Читаем файл
+        if file.filename.endswith('.csv'):
+            df = pd.read_csv(file, encoding='utf-8')
+        else:
+            df = pd.read_excel(file)
+
+        conn = get_db_connection()
+        success_count = 0
+        error_count = 0
+        errors = []
+
+        # Нормализуем названия колонок
+        df.columns = [str(col).strip() for col in df.columns]
+
+        # Создаем словарь соответствия колонок
+        column_mapping = {}
+        for col in df.columns:
+            col_lower = col.lower()
+            if '№' in col or 'номер' in col_lower or 'id' == col_lower:
+                column_mapping['number'] = col
+            elif 'подраздел' in col_lower or 'отдел' in col_lower or 'department' in col_lower:
+                column_mapping['department'] = col
+            elif 'сотрудник' in col_lower or 'фио' in col_lower or 'fio' in col_lower or 'full_name' in col_lower:
+                column_mapping['fio'] = col
+            elif 'должн' in col_lower or 'post' in col_lower or 'position' in col_lower:
+                column_mapping['post'] = col
+            elif 'телефон' in col_lower or 'phone' in col_lower or 'tel' in col_lower:
+                column_mapping['phone'] = col
+
+        # Проверяем обязательные колонки
+        if 'fio' not in column_mapping:
+            flash('Не найдена колонка с ФИО. Ожидаются: "Сотрудник", "ФИО" или "full_name"', 'danger')
+            return redirect(url_for('admin_users'))
+
+        if 'post' not in column_mapping:
+            flash('Не найдена колонка с должностью. Ожидаются: "Должность" или "post"', 'danger')
+            return redirect(url_for('admin_users'))
+
+        if 'phone' not in column_mapping:
+            flash('Не найдена колонка с телефоном. Ожидаются: "Телефон" или "phone"', 'danger')
+            return redirect(url_for('admin_users'))
+
+        for index, row in df.iterrows():
+            try:
+                # Извлекаем данные
+                fio = str(row[column_mapping['fio']]).strip()
+                post = str(row[column_mapping['post']]).strip()
+                phone_raw = str(row[column_mapping['phone']]).strip()
+                department = str(row[column_mapping['department']]) if 'department' in column_mapping else ''
+
+                # Очистка
+                if department == 'nan':
+                    department = ''
+                if post == 'nan':
+                    post = ''
+
+                # Пропускаем пустые строки
+                if not fio or fio == 'nan' or fio == '':
+                    continue
+
+                # Пропускаем заголовки
+                if fio.startswith('№') or fio == 'Сотрудник':
+                    continue
+
+                # Разбираем ФИО
+                fio_parts = fio.split()
+                if len(fio_parts) >= 2:
+                    last_name = fio_parts[0]
+                    first_name = fio_parts[1]
+                    middle_name = fio_parts[2] if len(fio_parts) >= 3 else ''
+                else:
+                    last_name = fio
+                    first_name = ''
+                    middle_name = ''
+
+                # Нормализуем телефон
+                phone = normalize_phone(phone_raw)
+                if not phone:
+                    errors.append(f"Строка {index + 2}: Неверный формат телефона: {phone_raw}")
+                    error_count += 1
+                    continue
+
+                # ПРОВЕРКА: существует ли пользователь с таким ФИО
+                existing_user = conn.execute('''
+                    SELECT id FROM users 
+                    WHERE last_name = ? AND first_name = ? AND middle_name = ?
+                ''', (last_name, first_name, middle_name)).fetchone()
+
+                if existing_user:
+                    errors.append(
+                        f"Строка {index + 2}: Пользователь {fio} уже существует в системе (ID: {existing_user['id']})")
+                    error_count += 1
+                    continue
+
+                # Генерируем логин
+                username = generate_username(last_name, first_name, middle_name)
+                if not username:
+                    errors.append(f"Строка {index + 2}: Не удалось сгенерировать логин для {fio}")
+                    error_count += 1
+                    continue
+
+                # Уникальность логина
+                base_username = username
+                counter = 1
+                while conn.execute('SELECT id FROM users WHERE username = ?', (username,)).fetchone():
+                    username = f"{base_username}{counter}"
+                    counter += 1
+
+                # Генерируем email
+                email = f"{username}@mosreg.ru"
+
+                # Временный пароль
+                temp_password = hashlib.sha256('Qwerty123'.encode()).hexdigest()
+                created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+                # ПРОВЕРКА: существует ли телефон
+                existing_phone = conn.execute('SELECT id FROM users WHERE phone = ?', (phone,)).fetchone()
+                if existing_phone:
+                    errors.append(f"Строка {index + 2}: Телефон {phone} уже зарегистрирован другим пользователем")
+                    error_count += 1
+                    continue
+
+                # Создаем пользователя
+                conn.execute('''
+                    INSERT INTO users (username, email, password, last_name, first_name, middle_name, post, department, phone, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (username, email, temp_password, last_name, first_name, middle_name, post, department, phone,
+                      created_at))
+
+                success_count += 1
+
+            except Exception as e:
+                error_count += 1
+                errors.append(f"Строка {index + 2}: {str(e)}")
+
+        conn.commit()
+        conn.close()
+
+        flash(f'✅ Импорт завершен. Добавлено: {success_count}, Ошибок: {error_count}', 'success')
+        if errors:
+            for error in errors[:10]:
+                flash(error, 'warning')
+
+    except Exception as e:
+        flash(f'Ошибка при чтении файла: {str(e)}', 'danger')
+
+    return redirect(url_for('admin_users'))
+
+
+@app.route('/admin/user/add', methods=['GET', 'POST'])
+@admin_required
+def admin_user_add():
+    """Ручное добавление пользователя"""
+    if request.method == 'POST':
+        username = request.form['username'].strip()
+        email = request.form['email'].strip()
+        password = request.form['password']
+        last_name = request.form['last_name'].strip()
+        first_name = request.form['first_name'].strip()
+        middle_name = request.form.get('middle_name', '').strip()
+        post = request.form['post'].strip()
+        department = request.form.get('department', '').strip()
+        phone = request.form['phone'].strip()
+
+        # Валидация
+        errors = []
+
+        if not username:
+            errors.append('Логин обязателен')
+        if not email:
+            errors.append('Email обязателен')
+        if len(password) < 6:
+            errors.append('Пароль должен быть не менее 6 символов')
+        if not last_name:
+            errors.append('Фамилия обязательна')
+        if not first_name:
+            errors.append('Имя обязательно')
+        if not phone:
+            errors.append('Телефон обязателен')
+
+        # Нормализация телефона
+        phone = re.sub(r'\D', '', phone)
+        if not re.match(r'^[78]\d{10}$', phone):
+            errors.append('Введите корректный номер телефона (10 цифр после 7 или 8)')
+
+        if errors:
+            for error in errors:
+                flash(error, 'danger')
+            return render_template('admins/admin_user_add.html')
+
+        hashed_pwd = hashlib.sha256(password.encode()).hexdigest()
+        created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        conn = get_db_connection()
+
+        # Проверка уникальности логина
+        existing_username = conn.execute('SELECT id FROM users WHERE username = ?', (username,)).fetchone()
+        if existing_username:
+            flash('Пользователь с таким логином уже существует', 'danger')
+            conn.close()
+            return render_template('admins/admin_user_add.html')
+
+        # Проверка уникальности email
+        existing_email = conn.execute('SELECT id FROM users WHERE email = ?', (email,)).fetchone()
+        if existing_email:
+            flash('Пользователь с таким email уже существует', 'danger')
+            conn.close()
+            return render_template('admins/admin_user_add.html')
+
+        # Проверка уникальности телефона
+        existing_phone = conn.execute('SELECT id FROM users WHERE phone = ?', (phone,)).fetchone()
+        if existing_phone:
+            flash('Пользователь с таким телефоном уже существует', 'danger')
+            conn.close()
+            return render_template('admins/admin_user_add.html')
+
+        try:
+            conn.execute('''
+                INSERT INTO users (username, email, password, last_name, first_name, middle_name, post, department, phone, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (username, email, hashed_pwd, last_name, first_name, middle_name, post, department, phone, created_at))
+            conn.commit()
+            flash(f'✅ Пользователь {username} успешно добавлен!', 'success')
+            return redirect(url_for('admin_users'))
+        except Exception as e:
+            flash(f'Ошибка при добавлении: {str(e)}', 'danger')
+        finally:
+            conn.close()
+
+    return render_template('admins/admin_user_add.html')
+
 @app.route('/admin/user/delete/<int:user_id>')
 @admin_required
 def admin_user_delete(user_id):
@@ -561,6 +944,111 @@ def admin_operator_delete(operator_id):
     flash('Оператор удален', 'success')
     return redirect(url_for('admin_operators'))
 
+
+@app.route('/operator/assign/<int:ticket_id>', methods=['POST'])
+@operator_required
+def assign_operator(ticket_id):
+    """Назначение оператора на заявку"""
+    assigned_to = request.form.get('assigned_to')
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    conn = get_db_connection()
+
+    if assigned_to and assigned_to != '':
+        # При назначении обновляем статус и время
+        conn.execute('''
+            UPDATE tickets 
+            SET assigned_to = ?, status = 'in_progress', updated_at = ?
+            WHERE id = ?
+        ''', (int(assigned_to), current_time, ticket_id))
+        flash('Оператор назначен на заявку', 'success')
+    else:
+        conn.execute('UPDATE tickets SET assigned_to = NULL, status = "new", updated_at = NULL WHERE id = ?',
+                     (ticket_id,))
+        flash('Назначение отменено', 'info')
+
+    conn.commit()
+    conn.close()
+
+    return redirect(url_for('operator_dashboard'))
+
+
+# ===================== КОММЕНТАРИИ =====================
+
+@app.route('/ticket/<int:ticket_id>/add_comment', methods=['POST'])
+@login_required
+def add_comment(ticket_id):
+    """Добавление комментария пользователем"""
+    comment = request.form.get('comment', '').strip()
+
+    if not comment:
+        flash('Комментарий не может быть пустым', 'warning')
+        return redirect(url_for('ticket_status', ticket_id=ticket_id))
+
+    conn = get_db_connection()
+
+    # Проверяем, что заявка принадлежит пользователю
+    ticket = conn.execute('SELECT user_id FROM tickets WHERE id = ?', (ticket_id,)).fetchone()
+    if not ticket or ticket['user_id'] != session['user_id']:
+        flash('Доступ запрещен', 'danger')
+        conn.close()
+        return redirect(url_for('dashboard'))
+
+    conn.execute('''
+        INSERT INTO comments (ticket_id, user_id, comment, created_at)
+        VALUES (?, ?, ?, ?)
+    ''', (ticket_id, session['user_id'], comment, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+
+    conn.commit()
+    conn.close()
+
+    flash('Комментарий добавлен', 'success')
+    return redirect(url_for('ticket_status', ticket_id=ticket_id))
+
+
+@app.route('/operator/ticket/<int:ticket_id>/add_comment', methods=['POST'])
+@operator_required
+def operator_add_comment(ticket_id):
+    """Добавление комментария оператором"""
+    comment = request.form.get('comment', '').strip()
+
+    if not comment:
+        flash('Комментарий не может быть пустым', 'warning')
+        return redirect(url_for('operator_ticket', ticket_id=ticket_id))
+
+    conn = get_db_connection()
+
+    conn.execute('''
+        INSERT INTO comments (ticket_id, operator_id, comment, created_at)
+        VALUES (?, ?, ?, ?)
+    ''', (ticket_id, session['operator_id'], comment, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+
+    conn.commit()
+    conn.close()
+
+    flash('Комментарий добавлен', 'success')
+    return redirect(url_for('operator_ticket', ticket_id=ticket_id))
+
+
+@app.route('/ticket/<int:ticket_id>/comments')
+def get_comments(ticket_id):
+    """Получение комментариев к заявке (AJAX)"""
+    conn = get_db_connection()
+
+    comments = conn.execute('''
+        SELECT c.*, 
+               u.last_name as user_last_name, u.first_name as user_first_name,
+               o.last_name as op_last_name, o.first_name as op_first_name
+        FROM comments c
+        LEFT JOIN users u ON c.user_id = u.id
+        LEFT JOIN operators o ON c.operator_id = o.id
+        WHERE c.ticket_id = ?
+        ORDER BY c.created_at ASC
+    ''', (ticket_id,)).fetchall()
+
+    conn.close()
+
+    return {'comments': [dict(c) for c in comments]}
 
 # ===================== РЕДАКТИРОВАНИЕ ЗАЯВОК (АДМИН) =====================
 
@@ -624,9 +1112,34 @@ def admin_ticket_delete(ticket_id):
 @login_required
 def create_ticket():
     if request.method == 'POST':
+        import re
+
         # Получаем описание
         description = request.form.get('description', '')
+
+        # ===== АГРЕССИВНАЯ ОЧИСТКА ПЕРЕД СОХРАНЕНИЕМ =====
+        # Заменяем все виды переносов на \n
+        description = description.replace('\r\n', '\n').replace('\r', '\n')
+
+        # Разбиваем на строки и чистим каждую
+        lines = description.split('\n')
+        cleaned_lines = []
+        for line in lines:
+            # Убираем пробелы в начале и конце строки
+            clean_line = line.strip()
+            # Пропускаем пустые строки и строки-маркеры
+            if clean_line and not re.match(r'^[-=*_]{3,}$', clean_line):
+                cleaned_lines.append(clean_line)
+
+        # Соединяем с одним переносом
+        description = '\n'.join(cleaned_lines)
+
+        # Убираем множественные пробелы внутри строки
+        description = re.sub(r'[ \t]+', ' ', description)
         description = description.strip()
+
+        if not description:
+            description = 'Описание не указано'
 
         # Создаем тему из первых 50 символов описания
         subject = description[:50] + '...' if len(description) > 50 else description
@@ -683,7 +1196,10 @@ def clean_text_filter(s):
         return ''
     import re
 
-    # Убираем все маркеры и разделители
+    # Заменяем все виды переносов на \n
+    s = s.replace('\r\n', '\n').replace('\r', '\n')
+
+    # Убираем маркеры
     s = re.sub(r'^[-=*_]{3,}$', '', s, flags=re.MULTILINE)
 
     # Разбиваем на строки
@@ -693,14 +1209,14 @@ def clean_text_filter(s):
     for line in lines:
         # Убираем пробелы в начале и конце строки
         clean_line = line.strip()
-        # Пропускаем пустые строки и строки-маркеры
-        if clean_line and not re.match(r'^[-=*_]{3,}$', clean_line):
+        # Пропускаем пустые строки
+        if clean_line:
             cleaned_lines.append(clean_line)
 
-    # Соединяем с одним переносом
+    # Соединяем
     result = '\n'.join(cleaned_lines)
 
-    # Убираем множественные пробелы внутри
+    # Убираем множественные пробелы
     result = re.sub(r'[ \t]+', ' ', result)
 
     return result.strip()
@@ -778,28 +1294,33 @@ def operator_dashboard():
 
     try:
         if status_filter == 'all':
-            # Активные заявки (ИСКЛЮЧАЕМ resolved и closed)
             tickets = conn.execute('''
                 SELECT t.*, u.last_name, u.first_name, u.middle_name, u.post, u.phone, u.username,
                        o.last_name as op_last_name, o.first_name as op_first_name,
-                       julianday('now') - julianday(t.created_at) as hours_since_created
+                       CAST(ROUND((julianday('now') - julianday(t.created_at)) * 24, 2) AS REAL) as hours_since_created
                 FROM tickets t 
                 JOIN users u ON t.user_id = u.id 
                 LEFT JOIN operators o ON t.assigned_to = o.id
                 WHERE t.status NOT IN ('resolved', 'closed')
                 ORDER BY 
+                    CASE t.priority
+                        WHEN 'high' THEN 1
+                        WHEN 'medium' THEN 2
+                        WHEN 'low' THEN 3
+                        ELSE 4
+                    END,
                     CASE t.status 
                         WHEN 'new' THEN 1
                         WHEN 'in_progress' THEN 2
                         ELSE 3
-                    END, t.id DESC
+                    END, 
+                    t.id DESC
             ''').fetchall()
         elif status_filter == 'resolved':
-            # Решенные и закрытые заявки
             tickets = conn.execute('''
                 SELECT t.*, u.last_name, u.first_name, u.middle_name, u.post, u.phone, u.username,
                        o.last_name as op_last_name, o.first_name as op_first_name,
-                       julianday('now') - julianday(t.created_at) as hours_since_created
+                       CAST(ROUND((julianday('now') - julianday(t.created_at)) * 24, 2) AS REAL) as hours_since_created
                 FROM tickets t 
                 JOIN users u ON t.user_id = u.id 
                 LEFT JOIN operators o ON t.assigned_to = o.id
@@ -810,30 +1331,43 @@ def operator_dashboard():
             tickets = conn.execute('''
                 SELECT t.*, u.last_name, u.first_name, u.middle_name, u.post, u.phone, u.username,
                        o.last_name as op_last_name, o.first_name as op_first_name,
-                       julianday('now') - julianday(t.created_at) as hours_since_created
+                       CAST(ROUND((julianday('now') - julianday(t.created_at)) * 24, 2) AS REAL) as hours_since_created
                 FROM tickets t 
                 JOIN users u ON t.user_id = u.id 
                 LEFT JOIN operators o ON t.assigned_to = o.id
                 WHERE t.status = 'new'
-                ORDER BY t.id DESC
+                ORDER BY 
+                    CASE t.priority
+                        WHEN 'high' THEN 1
+                        WHEN 'medium' THEN 2
+                        WHEN 'low' THEN 3
+                        ELSE 4
+                    END,
+                    t.id DESC
             ''').fetchall()
         elif status_filter == 'in_progress':
             tickets = conn.execute('''
                 SELECT t.*, u.last_name, u.first_name, u.middle_name, u.post, u.phone, u.username,
                        o.last_name as op_last_name, o.first_name as op_first_name,
-                       julianday('now') - julianday(t.created_at) as hours_since_created
+                       CAST(ROUND((julianday('now') - julianday(t.created_at)) * 24, 2) AS REAL) as hours_since_created
                 FROM tickets t 
                 JOIN users u ON t.user_id = u.id 
                 LEFT JOIN operators o ON t.assigned_to = o.id
                 WHERE t.status = 'in_progress'
-                ORDER BY t.id DESC
+                ORDER BY 
+                    CASE t.priority
+                        WHEN 'high' THEN 1
+                        WHEN 'medium' THEN 2
+                        WHEN 'low' THEN 3
+                        ELSE 4
+                    END,
+                    t.id DESC
             ''').fetchall()
         else:
-            # По умолчанию - активные
             tickets = conn.execute('''
                 SELECT t.*, u.last_name, u.first_name, u.middle_name, u.post, u.phone, u.username,
                        o.last_name as op_last_name, o.first_name as op_first_name,
-                       julianday('now') - julianday(t.created_at) as hours_since_created
+                       CAST(ROUND((julianday('now') - julianday(t.created_at)) * 24, 2) AS REAL) as hours_since_created
                 FROM tickets t 
                 JOIN users u ON t.user_id = u.id 
                 LEFT JOIN operators o ON t.assigned_to = o.id
@@ -843,11 +1377,58 @@ def operator_dashboard():
     except sqlite3.OperationalError as e:
         print(f"Ошибка БД: {e}")
         tickets = []
-    finally:
-        conn.close()
 
-    return render_template('operators/operator_dashboard.html', tickets=tickets, current_filter=status_filter)
+    # ============ СТАТИСТИКА ДЛЯ ОПЕРАТОРА ============
+    # Общая статистика
+    total_tickets = conn.execute('SELECT COUNT(*) FROM tickets').fetchone()[0]
+    new_tickets = conn.execute('SELECT COUNT(*) FROM tickets WHERE status = "new"').fetchone()[0]
+    in_progress = conn.execute('SELECT COUNT(*) FROM tickets WHERE status = "in_progress"').fetchone()[0]
+    resolved = conn.execute('SELECT COUNT(*) FROM tickets WHERE status IN ("resolved", "closed")').fetchone()[0]
 
+    # Статистика по текущему оператору
+    my_tickets = \
+    conn.execute('SELECT COUNT(*) FROM tickets WHERE assigned_to = ?', (session['operator_id'],)).fetchone()[0]
+    my_in_progress = conn.execute('SELECT COUNT(*) FROM tickets WHERE assigned_to = ? AND status = "in_progress"',
+                                  (session['operator_id'],)).fetchone()[0]
+    my_resolved = \
+    conn.execute('SELECT COUNT(*) FROM tickets WHERE assigned_to = ? AND status IN ("resolved", "closed")',
+                 (session['operator_id'],)).fetchone()[0]
+
+    # Заявки за сегодня
+    today = datetime.now().strftime("%Y-%m-%d")
+    tickets_today = conn.execute('SELECT COUNT(*) FROM tickets WHERE date(created_at) = ?', (today,)).fetchone()[0]
+
+    operators = conn.execute('SELECT id, last_name, first_name FROM operators ORDER BY last_name').fetchall()
+    conn.close()
+
+    return render_template('operators/operator_dashboard.html',
+                           tickets=tickets,
+                           current_filter=status_filter,
+                           operators=operators,
+                           # Статистика
+                           total_tickets=total_tickets,
+                           new_tickets=new_tickets,
+                           in_progress=in_progress,
+                           resolved=resolved,
+                           my_tickets=my_tickets,
+                           my_in_progress=my_in_progress,
+                           my_resolved=my_resolved,
+                           tickets_today=tickets_today)
+
+@app.route('/operator/get_templates/<category>')
+@operator_required
+def get_templates(category):
+    """Получение шаблонов ответов по категории"""
+    conn = get_db_connection()
+    if category == 'all':
+        templates = conn.execute('SELECT * FROM answer_templates ORDER BY category, name').fetchall()
+    else:
+        templates = conn.execute(
+            'SELECT * FROM answer_templates WHERE category = ? OR category = "common" ORDER BY name',
+            (category,)).fetchall()
+    conn.close()
+
+    return {'templates': [dict(t) for t in templates]}
 
 @app.route('/operator/ticket/<int:ticket_id>', methods=['GET', 'POST'])
 @operator_required
@@ -856,28 +1437,28 @@ def operator_ticket(ticket_id):
 
     if request.method == 'POST':
         status = request.form['status']
-        answer = request.form['answer']
+        priority = request.form['priority']
+        # answer больше не обязательное поле
+        answer = request.form.get('answer', '')  # Используем .get() с значением по умолчанию
         updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        if status == 'in_progress' and not \
-                conn.execute('SELECT assigned_to FROM tickets WHERE id = ?', (ticket_id,)).fetchone()['assigned_to']:
+        if status == 'in_progress' and not conn.execute('SELECT assigned_to FROM tickets WHERE id = ?', (ticket_id,)).fetchone()['assigned_to']:
             conn.execute('UPDATE tickets SET assigned_to = ?, updated_at = ? WHERE id = ?',
                          (session['operator_id'], updated_at, ticket_id))
 
         if status == 'resolved':
             completed_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             conn.execute(
-                'UPDATE tickets SET status = ?, operator_answer = ?, updated_at = ?, completed_at = ? WHERE id = ?',
-                (status, answer, updated_at, completed_at, ticket_id))
+                'UPDATE tickets SET status = ?, operator_answer = ?, priority = ?, updated_at = ?, completed_at = ? WHERE id = ?',
+                (status, answer, priority, updated_at, completed_at, ticket_id))
         elif status == 'closed':
-            # Закрытие заявки - она пропадет из основного списка
             closed_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             conn.execute(
-                'UPDATE tickets SET status = ?, operator_answer = ?, updated_at = ?, completed_at = ? WHERE id = ?',
-                (status, answer, updated_at, closed_at, ticket_id))
+                'UPDATE tickets SET status = ?, operator_answer = ?, priority = ?, updated_at = ?, completed_at = ? WHERE id = ?',
+                (status, answer, priority, updated_at, closed_at, ticket_id))
         else:
-            conn.execute('UPDATE tickets SET status = ?, operator_answer = ?, updated_at = ? WHERE id = ?',
-                         (status, answer, updated_at, ticket_id))
+            conn.execute('UPDATE tickets SET status = ?, operator_answer = ?, priority = ?, updated_at = ? WHERE id = ?',
+                         (status, answer, priority, updated_at, ticket_id))
 
         conn.commit()
         flash('Заявка обновлена', 'success')
@@ -885,9 +1466,9 @@ def operator_ticket(ticket_id):
         return redirect(url_for('operator_dashboard'))
 
     ticket = conn.execute('''
-        SELECT t.*, u.last_name, u.first_name, u.middle_name, u.post, u.phone, u.username,
+        SELECT t.*, u.last_name, u.first_name, u.middle_name, u.post, u.phone, u.username, u.email,
                o.last_name as op_last_name, o.first_name as op_first_name, o.middle_name as op_middle_name, o.post as op_post,
-               julianday('now') - julianday(t.created_at) as hours_since_created
+               ROUND(MAX(0, julianday('now') - julianday(t.created_at)), 2) as hours_since_created
         FROM tickets t 
         JOIN users u ON t.user_id = u.id 
         LEFT JOIN operators o ON t.assigned_to = o.id
@@ -998,15 +1579,26 @@ def inject_user():
         conn.close()
 
         if user:
+            # Полное ФИО
+            full_name_parts = []
+            if user['last_name']:
+                full_name_parts.append(user['last_name'])
+            if user['first_name']:
+                full_name_parts.append(user['first_name'])
+            if user['middle_name']:
+                full_name_parts.append(user['middle_name'])
+            full_name = ' '.join(full_name_parts)
+
             user_info = {
                 'id': user['id'],
                 'username': user['username'],
                 'email': user['email'],
-                'full_name': f"{user['last_name']} {user['first_name']} {user['middle_name'] or ''}",
+                'full_name': full_name,
                 'first_name': user['first_name'],
                 'last_name': user['last_name'],
                 'middle_name': user['middle_name'],
                 'post': user['post'],
+                'department': user['department'],
                 'phone': user['phone'],
                 'is_admin': user['is_admin']
             }

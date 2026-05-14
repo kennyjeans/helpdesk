@@ -188,41 +188,36 @@
     <!-- Описание проблемы -->
     <div class="description-section">
         <h3>💬 Описание проблемы</h3>
-        <div class="description-box">
+        <div class="description-box" style="white-space: normal; word-wrap: break-word;">
             {% if ticket.description %}
-            {% set cleaned = ticket.description | clean_text %}
-            {% if cleaned %}
-            {{ cleaned | nl2br | safe }}
-            {% else %}
-            <em class="text-muted">Описание отсутствует</em>
-            {% endif %}
+            {{ ticket.description | replace('\n', '<br>') | safe }}
             {% else %}
             <em class="text-muted">Описание отсутствует</em>
             {% endif %}
         </div>
     </div>
 
-    <!-- Ответ оператора -->
-    {% if ticket.operator_answer %}
-    <div class="answer-section">
-        <h3>📨 Ответ технической поддержки</h3>
-        <div class="answer-box">
-            {% set cleaned_answer = ticket.operator_answer | clean_text %}
-            {% if cleaned_answer %}
-            {{ cleaned_answer | nl2br | safe }}
-            {% else %}
-            <em class="text-muted">Ответ отсутствует</em>
-            {% endif %}
+    <!-- Чат с комментариями -->
+    <div class="chat-section">
+        <h3>💬 Переписка с поддержкой</h3>
+        <div class="chat-messages" id="chatMessages">
+            <div class="loading-chat">Загрузка сообщений...</div>
+        </div>
+
+        <div class="chat-input">
+            <form method="POST" action="{{ url_for('add_comment', ticket_id=ticket.id) }}" id="commentForm">
+                <textarea name="comment" class="form-control" rows="3" placeholder="Напишите сообщение..."></textarea>
+                <button type="submit" class="btn btn-primary" style="margin-top: 10px;">📤 Отправить</button>
+            </form>
         </div>
     </div>
-    {% endif %}
 
-    <!-- Дата выполнения -->
+    <!-- Дата выполнения
     {% if ticket.completed_at %}
     <div class="completed-banner">
         ✅ <strong>Заявка выполнена</strong> - {{ ticket.completed_at }}
     </div>
-    {% endif %}
+    {% endif %} -->
 
     <!-- Кнопки действий -->
     <div class="action-buttons">
@@ -230,11 +225,11 @@
 
         {% if ticket.status == 'new' %}
         <div class="alert alert-info status-message">
-            ⏳ Заявка принята и ожидает ответа IT-отдела. Решение будет принято в ближайшее время. Следите за статусом заявки.
+            ⏳ Заявка ожидает ответа оператора. Мы свяжемся с вами в ближайшее время.
         </div>
         {% elif ticket.status == 'in_progress' %}
         <div class="alert alert-warning status-message">
-            ⚙️ Заявка в работе. IT-отдел уже занимается вашей проблемой.
+            ⚙️ Заявка в работе. Оператор уже занимается вашей проблемой.
         </div>
         {% elif ticket.status == 'resolved' %}
         <div class="alert alert-success status-message">
@@ -245,7 +240,219 @@
 </div>
 
 <style>
-    /* Дополнительные стили только для этой страницы */
+    /* Стили для чата */
+    .chat-section {
+        margin: 30px 0;
+        border-top: 1px solid var(--glass-border);
+        padding-top: 20px;
+    }
+
+    .chat-messages {
+        background: rgba(102, 126, 234, 0.05);
+        border-radius: 16px;
+        padding: 20px;
+        max-height: 400px;
+        overflow-y: auto;
+        margin-bottom: 20px;
+    }
+
+    .chat-message {
+        margin-bottom: 15px;
+        padding: 12px 15px;
+        border-radius: 12px;
+        animation: fadeIn 0.3s ease;
+    }
+
+    .chat-message.user {
+        background: rgba(102, 126, 234, 0.15);
+        border-left: 3px solid var(--accent-color);
+    }
+
+    .chat-message.operator {
+        background: rgba(16, 185, 129, 0.1);
+        border-left: 3px solid #10b981;
+    }
+
+    .chat-message-header {
+        font-size: 12px;
+        font-weight: 600;
+        margin-bottom: 5px;
+        color: var(--text-muted);
+    }
+
+    .chat-message-text {
+        font-size: 14px;
+        line-height: 1.4;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+
+    .chat-message-time {
+        font-size: 10px;
+        color: var(--text-muted);
+        margin-top: 5px;
+        text-align: right;
+    }
+
+    .loading-chat {
+        text-align: center;
+        padding: 20px;
+        color: var(--text-muted);
+    }
+
+    /* Форма ввода чата */
+    .chat-input {
+        margin-top: 15px;
+    }
+
+    .chat-textarea {
+        width: 100%;
+        padding: 12px 15px;
+        border: 1px solid var(--glass-border);
+        border-radius: 12px;
+        background: var(--glass-bg);
+        color: var(--text-primary);
+        font-size: 14px;
+        resize: vertical;
+        transition: all 0.2s ease;
+    }
+
+    .chat-textarea:focus {
+        outline: none;
+        border-color: var(--accent-color);
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .chat-submit {
+        margin-top: 10px;
+        width: auto;
+        min-width: 120px;
+    }
+
+    /* Кнопки действий */
+    .action-buttons {
+        display: flex;
+        gap: 15px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid var(--glass-border);
+    }
+
+    .status-message {
+        flex: 1;
+        margin: 0;
+        padding: 12px 18px;
+        border-radius: 12px;
+    }
+
+    /* Прогресс-бар */
+    .progress-steps {
+        display: flex;
+        justify-content: space-between;
+        margin: 30px 0;
+        position: relative;
+    }
+
+    .progress-steps::before {
+        content: '';
+        position: absolute;
+        top: 20px;
+        left: 10%;
+        right: 10%;
+        height: 2px;
+        background: var(--glass-border);
+        z-index: 0;
+    }
+
+    .progress-step {
+        flex: 1;
+        text-align: center;
+        position: relative;
+        z-index: 1;
+    }
+
+    .step-circle {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: var(--glass-bg);
+        border: 2px solid var(--glass-border);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        margin-bottom: 8px;
+        transition: all 0.3s;
+    }
+
+    .progress-step.active .step-circle {
+        background: linear-gradient(135deg, var(--accent-color), #764ba2);
+        border-color: transparent;
+        color: white;
+        box-shadow: 0 0 15px rgba(102, 126, 234, 0.5);
+    }
+
+    .step-label {
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+    .progress-step.active .step-label {
+        color: var(--accent-color);
+        font-weight: 500;
+    }
+
+    /* Карточки информации */
+    .info-card {
+        background: rgba(102, 126, 234, 0.05);
+        border-radius: 16px;
+        padding: 15px;
+        margin-top: 10px;
+    }
+
+    .info-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--glass-border);
+    }
+
+    .info-item:last-child {
+        border-bottom: none;
+    }
+
+    .info-icon {
+        font-size: 20px;
+        width: 32px;
+        text-align: center;
+    }
+
+    .info-label {
+        font-size: 11px;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .info-value {
+        font-size: 14px;
+        font-weight: 500;
+        margin-top: 2px;
+    }
+
+    .description-box {
+        background: rgba(102, 126, 234, 0.05);
+        padding: 20px;
+        border-radius: 16px;
+        margin-top: 10px;
+        white-space: normal;
+        word-wrap: break-word;
+        line-height: 1.5;
+    }
+
     .ticket-header {
         display: flex;
         justify-content: space-between;
@@ -265,40 +472,24 @@
         gap: 20px;
     }
 
-    .description-section, .answer-section {
-        margin-top: 20px;
-    }
-
-    .action-buttons {
-        margin-top: 30px;
-        display: flex;
-        gap: 15px;
-        flex-wrap: wrap;
-    }
-
-    .status-message {
-        flex: 1;
-        margin: 0;
-    }
-
-    .completed-banner {
-        margin-top: 20px;
-        text-align: center;
-        padding: 15px;
-        background: rgba(16, 185, 129, 0.1);
-        border-radius: 16px;
-    }
-
-    h3 {
-        margin: 0 0 10px 0;
-        font-size: 18px;
-    }
-
     hr {
         margin: 20px 0;
     }
 
     @media (max-width: 768px) {
+        .action-buttons {
+            flex-direction: column;
+        }
+
+        .status-message {
+            order: -1;
+            width: 100%;
+        }
+
+        .chat-submit {
+            width: 100%;
+        }
+
         .ticket-id {
             font-size: 22px;
         }
@@ -306,31 +497,51 @@
         .status-large {
             margin-top: 10px;
         }
-
-        .action-buttons {
-            flex-direction: column;
-        }
-
-        .status-message {
-            order: -1;
-        }
-    }
-    /* В конце style.css добавьте */
-    .description-box {
-        word-break: break-word;
-        white-space: normal;
-    }
-
-    .description-box p {
-        margin: 0 0 10px 0;
-    }
-
-    .description-box p:first-child {
-        margin-top: 0;
-    }
-
-    .description-box p:last-child {
-        margin-bottom: 0;
     }
 </style>
+<script>
+    // Загрузка комментариев
+    function loadComments() {
+        fetch('/ticket/{{ ticket.id }}/comments')
+            .then(response => response.json())
+            .then(data => {
+                const container = document.getElementById('chatMessages');
+                if (!container) return;
+
+                if (data.comments.length === 0) {
+                    container.innerHTML = '<div class="loading-chat">💬 Нет сообщений. Напишите первым!</div>';
+                    return;
+                }
+
+                let html = '';
+                for (let comment of data.comments) {
+                    const isUser = comment.user_id !== null;
+                    const name = isUser ? `${comment.user_last_name} ${comment.user_first_name}` : `${comment.op_last_name} ${comment.op_first_name}`;
+                    const role = isUser ? 'Сотрудник' : 'Оператор';
+                    const roleClass = isUser ? 'user' : 'operator';
+
+                    html += `
+                        <div class="chat-message ${roleClass}">
+                            <div class="chat-message-header">${name} (${role})</div>
+                            <div class="chat-message-text">${comment.comment.replace(/\n/g, '<br>')}</div>
+                            <div class="chat-message-time">${comment.created_at}</div>
+                        </div>
+                    `;
+                }
+                container.innerHTML = html;
+                // Прокрутка вниз
+                container.scrollTop = container.scrollHeight;
+            })
+            .catch(error => {
+                console.error('Ошибка загрузки комментариев:', error);
+                document.getElementById('chatMessages').innerHTML = '<div class="loading-chat">❌ Ошибка загрузки сообщений</div>';
+            });
+    }
+
+    // Загружаем комментарии при загрузке страницы
+    loadComments();
+
+    // Автоматически обновляем каждые 30 секунд
+    setInterval(loadComments, 30000);
+</script>
 {% endblock %}

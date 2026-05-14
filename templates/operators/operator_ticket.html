@@ -20,19 +20,21 @@
 
     <hr>
 
-    <!-- Блок с таймером времени -->
+    <!-- Блок с таймером времени (в днях) -->
     <div class="time-block">
         <h3>⏱️ Время с момента создания</h3>
         <div class="time-card">
             {% if ticket.hours_since_created %}
             {% set hours = ticket.hours_since_created|float %}
-            {% if hours < 1 %}
-            {% set minutes = (hours * 60)|int %}
-            <div class="time-value timer-new">🟢 {{ minutes }} минут</div>
-            {% elif hours < 24 %}
-            <div class="time-value timer-warning">🟡 {{ hours|int }} часов {{ ((hours % 1) * 60)|int }} минут</div>
+            {% set days = (hours / 24)|int %}
+            {% if days < 1 %}
+            <div class="time-value timer-new">🟢 Менее дня</div>
+            {% elif days < 3 %}
+            <div class="time-value timer-new">🟢 {{ days }} дня(ей)</div>
+            {% elif days < 7 %}
+            <div class="time-value timer-warning">🟡 {{ days }} дня(ей)</div>
             {% else %}
-            <div class="time-value timer-danger">🔴 {{ (hours / 24)|int }} дней {{ (hours % 24)|int }} часов</div>
+            <div class="time-value timer-danger">🔴 {{ days }} дня(ей)</div>
             {% endif %}
             {% else %}
             <div class="time-value">—</div>
@@ -100,7 +102,7 @@
                 <span class="info-icon">🆔</span>
                 <div>
                     <div class="info-label">ID ассистента</div>
-                    <div class="info-value">{{ ticket.assistant_id }}</div>
+                    <div class="info-value">{{ ticket.assistant_id or 'не указано' }}</div>
                 </div>
             </div>
             {% endif %}
@@ -110,15 +112,34 @@
     <!-- Описание проблемы -->
     <div class="description-block">
         <h3>📝 Описание проблемы</h3>
-        <div class="description-box-operator">
-            {{ ticket.description | clean_text | nl2br | safe }}
+        <div class="description-box-operator" style="white-space: normal; word-wrap: break-word; line-height: 1.5;">
+            {% if ticket.description %}
+            {{ ticket.description | replace('\n', '<br>') | safe }}
+            {% else %}
+            <em class="text-muted">Описание отсутствует</em>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Чат с пользователем -->
+    <div class="chat-section">
+        <h3>💬 Переписка с пользователем</h3>
+        <div class="chat-messages" id="chatMessages">
+            <div class="loading-chat">Загрузка сообщений...</div>
+        </div>
+
+        <div class="chat-input">
+            <form method="POST" action="{{ url_for('operator_add_comment', ticket_id=ticket.id) }}" id="commentForm">
+                <textarea name="comment" id="commentTextarea" class="form-control" rows="3" placeholder="Напишите сообщение пользователю..."></textarea>
+                <button type="submit" class="btn btn-primary" style="margin-top: 10px;">📤 Отправить</button>
+            </form>
         </div>
     </div>
 
     <hr>
 
     <!-- Форма обработки -->
-    <form method="POST">
+    <form method="POST" id="ticketForm">
         <div class="form-row">
             <div class="form-group">
                 <label>⚡ Приоритет</label>
@@ -140,10 +161,21 @@
             </div>
         </div>
 
+        <!-- Готовые ответы с предпросмотром -->
         <div class="form-group">
-            <label>💬 Ответ пользователю</label>
-            <textarea name="answer" rows="6" class="form-control"
-                      placeholder="Напишите ответ пользователю...">{{ ticket.operator_answer or '' }}</textarea>
+            <label>📋 Быстрые ответы</label>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
+                <button type="button" class="btn-template" data-template="it">💻 IT</button>
+                <button type="button" class="btn-template" data-template="med">🏥 Медицина</button>
+                <button type="button" class="btn-template" data-template="common">📝 Общие</button>
+            </div>
+            <div id="templatesContainer" style="display: none; margin-top: 10px;">
+                <select id="templateSelect" class="form-control" style="margin-bottom: 10px;">
+                    <option value="">-- Выберите шаблон ответа --</option>
+                </select>
+                <button type="button" id="applyTemplate" class="btn btn-primary btn-sm">📤 Отправить в чат</button>
+            </div>
+            <small class="text-muted">Выберите шаблон, просмотрите и отправьте в чат пользователю</small>
         </div>
 
         <div class="action-buttons-operator">
@@ -151,6 +183,23 @@
             <a href="{{ url_for('operator_dashboard') }}" class="btn btn-outline">← Назад к списку</a>
         </div>
     </form>
+</div>
+
+<!-- Модальное окно предпросмотра -->
+<div id="previewModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>📝 Редактирование/предпросмотр сообщения</h3>
+            <span class="modal-close">&times;</span>
+        </div>
+        <div class="modal-body">
+            <textarea id="previewTextarea" rows="10" class="form-control" style="width: 100%; resize: vertical;"></textarea>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-outline" id="cancelPreview">Отмена</button>
+            <button type="button" class="btn btn-primary" id="confirmSend">📤 Отправить</button>
+        </div>
+    </div>
 </div>
 
 <style>
@@ -167,7 +216,6 @@
         margin: 0;
     }
 
-    /* Блок с таймером */
     .time-block {
         margin: 20px 0;
     }
@@ -192,17 +240,9 @@
         color: var(--text-muted);
     }
 
-    .timer-new {
-        color: #10b981;
-    }
-
-    .timer-warning {
-        color: #f59e0b;
-    }
-
-    .timer-danger {
-        color: #ef4444;
-    }
+    .timer-new { color: #10b981; }
+    .timer-warning { color: #f59e0b; }
+    .timer-danger { color: #ef4444; }
 
     .info-grid {
         display: grid;
@@ -250,10 +290,74 @@
         padding: 20px;
         border-radius: 16px;
         margin-top: 10px;
+        white-space: normal;
+        word-wrap: break-word;
+        line-height: 1.5;
+    }
+
+    .description-box-operator br {
+        display: block;
+        content: "";
+        margin: 5px 0;
+    }
+
+    .chat-section {
+        margin: 30px 0;
+        border-top: 1px solid var(--glass-border);
+        padding-top: 20px;
+    }
+
+    .chat-messages {
+        background: rgba(102, 126, 234, 0.05);
+        border-radius: 16px;
+        padding: 20px;
+        max-height: 400px;
+        overflow-y: auto;
+        margin-bottom: 20px;
+    }
+
+    .chat-message {
+        margin-bottom: 15px;
+        padding: 12px;
+        border-radius: 12px;
+        animation: fadeIn 0.3s ease;
+    }
+
+    .chat-message.user {
+        background: rgba(102, 126, 234, 0.15);
+        border-left: 3px solid var(--accent-color);
+    }
+
+    .chat-message.operator {
+        background: rgba(16, 185, 129, 0.1);
+        border-left: 3px solid #10b981;
+    }
+
+    .chat-message-header {
+        font-size: 12px;
+        font-weight: 600;
+        margin-bottom: 5px;
+        color: var(--text-muted);
+    }
+
+    .chat-message-text {
+        font-size: 14px;
+        line-height: 1.4;
         white-space: pre-wrap;
         word-break: break-word;
-        overflow-wrap: break-word;
-        line-height: 1.5;
+    }
+
+    .chat-message-time {
+        font-size: 10px;
+        color: var(--text-muted);
+        margin-top: 5px;
+        text-align: right;
+    }
+
+    .loading-chat {
+        text-align: center;
+        padding: 20px;
+        color: var(--text-muted);
     }
 
     .form-row {
@@ -270,24 +374,268 @@
         flex-wrap: wrap;
     }
 
+    .btn-template {
+        background: rgba(102, 126, 234, 0.15);
+        border: 1px solid rgba(102, 126, 234, 0.3);
+        border-radius: 30px;
+        padding: 6px 16px;
+        cursor: pointer;
+        font-size: 13px;
+        transition: all 0.2s ease;
+    }
+
+    .btn-template:hover {
+        background: rgba(102, 126, 234, 0.25);
+        transform: translateY(-1px);
+    }
+
+    /* Модальное окно */
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.5);
+        backdrop-filter: blur(5px);
+    }
+
+    .modal-content {
+        background: var(--glass-bg);
+        backdrop-filter: blur(var(--blur-amount));
+        border-radius: 24px;
+        width: 90%;
+        max-width: 600px;
+        margin: 10% auto;
+        border: 1px solid var(--glass-border);
+        box-shadow: var(--shadow-lg);
+        animation: fadeInUp 0.3s ease;
+    }
+
+    .modal-header {
+        padding: 20px;
+        border-bottom: 1px solid var(--glass-border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-header h3 {
+        margin: 0;
+    }
+
+    .modal-close {
+        font-size: 28px;
+        cursor: pointer;
+        color: var(--text-muted);
+        transition: all 0.2s;
+    }
+
+    .modal-close:hover {
+        color: var(--accent-color);
+    }
+
+    .modal-body {
+        padding: 20px;
+        max-height: 400px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+        line-height: 1.5;
+        background: rgba(102, 126, 234, 0.05);
+        margin: 20px;
+        border-radius: 16px;
+    }
+    #previewTextarea {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid var(--glass-border);
+        border-radius: 12px;
+        background: var(--glass-bg);
+        color: var(--text-primary);
+        font-size: 14px;
+        line-height: 1.5;
+        resize: vertical;
+    }
+
+    #previewTextarea:focus {
+        outline: none;
+        border-color: var(--accent-color);
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .modal-footer {
+        padding: 20px;
+        border-top: 1px solid var(--glass-border);
+        display: flex;
+        gap: 15px;
+        justify-content: flex-end;
+    }
+
     @media (max-width: 768px) {
         .form-row {
             grid-template-columns: 1fr;
             gap: 15px;
         }
-
         .ticket-id-operator {
             font-size: 22px;
         }
-
         .info-grid {
             grid-template-columns: 1fr;
             gap: 12px;
         }
-
         .time-value {
             font-size: 22px;
         }
+        .modal-content {
+            width: 95%;
+            margin: 20% auto;
+        }
     }
 </style>
+
+<script>
+    // Шаблоны ответов
+    const templates = {
+        it: [
+            { name: "Проблема с ЕМИАС", content: "По проблеме с ЕМИАС рекомендуем:\n1. Напишите ваш ассистент.\n2. Позвоните по рабочему техническому номеру поддержки \n3. Перезагрузить браузер или компьютер\nЕсли проблема не решилась, свяжитесь с нами повторно." },
+            { name: "Проблема с принтером", content: "По проблеме с принтером:\n1. Проверьте подключение к сети\n2. Проверьте подключение по проводу\n3. Проверьте включён ли принтер.\n4. Проверьте наличие бумаги и картриджа\nЕсли не помогло, свяжемся для уточнения." },
+            { name: "Проблема с ЭЦП", content: "По проблеме с ЭЦП:\n1. Проверьте срок действия сертификата\n2. Переустановите КриптоПро\n3. Обратитесь в IT-отдел для перенастройки" },
+            { name: "Проблема с интернетом", content: "Проверьте:\n1. Кабели подключения - вытащите провод интернета и вставьте обратно\n2. Выключите и включите, откуда у вас подключен провод (коммутатор/роутер)\n3. Перезагрузите компьютер\nЕсли не работает - сообщите дополнительную информацию." }
+        ],
+        med: [
+            { name: "Ремонт оборудования", content: "Ваша заявка на ремонт медицинского оборудования принята. Специалист свяжется с вами в ближайшее время для уточнения деталей." },
+            { name: "Метрология", content: "По вопросу метрологического обслуживания оборудования - ваша заявка передана в соответствующий отдел. Ожидайте звонка." },
+            { name: "Ввод в эксплуатацию", content: "Заявка на ввод оборудования в эксплуатацию принята. Инженер свяжется с вами для согласования даты и времени." }
+        ],
+        common: [
+            { name: "Заявка принята", content: "Ваша заявка принята в работу." },
+            { name: "Требуется уточнение", content: "Для решения вашей проблемы нам нужно уточнить некоторые детали. Мы свяжемся с вами в ближайшее свободное время или вам необходимо будет дополнить заявку." },
+            { name: "Проблема решена", content: "Ваша проблема решена. Если остались вопросы - обращайтесь. Хорошего дня!" }
+        ]
+    };
+
+    const templatesContainer = document.getElementById('templatesContainer');
+    const templateSelect = document.getElementById('templateSelect');
+    const applyTemplateBtn = document.getElementById('applyTemplate');
+    const commentForm = document.getElementById('commentForm');
+    const commentTextarea = document.getElementById('commentTextarea');
+
+    // Модальное окно
+    const previewModal = document.getElementById('previewModal');
+    const previewTextarea = document.getElementById('previewTextarea');
+    const confirmSendBtn = document.getElementById('confirmSend');
+    const cancelPreviewBtn = document.getElementById('cancelPreview');
+    const modalClose = document.querySelector('.modal-close');
+    let pendingTemplateContent = null;
+
+    function showTemplates(category) {
+        const categoryTemplates = templates[category] || [];
+        templateSelect.innerHTML = '<option value="">-- Выберите шаблон ответа --</option>';
+
+        categoryTemplates.forEach(template => {
+            const option = document.createElement('option');
+            option.value = template.content;
+            option.textContent = template.name;
+            templateSelect.appendChild(option);
+        });
+
+        templatesContainer.style.display = 'block';
+    }
+
+    function showPreview(content) {
+        pendingTemplateContent = content;
+        previewTextarea.value = content;
+        previewModal.style.display = 'block';
+        // Фокусируемся на текстовом поле для редактирования
+        setTimeout(() => {
+            previewTextarea.focus();
+            previewTextarea.select();
+        }, 100);
+    }
+
+    function closePreview() {
+        previewModal.style.display = 'none';
+        pendingTemplateContent = null;
+        previewTextarea.value = '';
+    }
+
+    // Кнопки выбора категории
+    document.querySelectorAll('.btn-template').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const category = this.dataset.template;
+            showTemplates(category);
+        });
+    });
+
+    // Применить шаблон (открыть модальное окно)
+    applyTemplateBtn.addEventListener('click', function() {
+        const selectedContent = templateSelect.value;
+        if (selectedContent && commentTextarea) {
+            showPreview(selectedContent);
+        }
+    });
+
+    // Отправка отредактированного сообщения
+    confirmSendBtn.addEventListener('click', function() {
+        const editedContent = previewTextarea.value;
+        if (editedContent && editedContent.trim() !== '' && commentTextarea) {
+            commentTextarea.value = editedContent;
+            commentForm.submit();
+        }
+        closePreview();
+    });
+
+    cancelPreviewBtn.addEventListener('click', closePreview);
+    modalClose.addEventListener('click', closePreview);
+
+    // Закрытие по клику вне модального окна
+    window.addEventListener('click', function(event) {
+        if (event.target === previewModal) {
+            closePreview();
+        }
+    });
+
+    // Загрузка комментариев
+    function loadComments() {
+        fetch('/ticket/{{ ticket.id }}/comments')
+            .then(response => response.json())
+            .then(data => {
+                const container = document.getElementById('chatMessages');
+                if (!container) return;
+
+                if (data.comments.length === 0) {
+                    container.innerHTML = '<div class="loading-chat">💬 Нет сообщений. Напишите пользователю первым!</div>';
+                    return;
+                }
+
+                let html = '';
+                for (let comment of data.comments) {
+                    const isUser = comment.user_id !== null;
+                    const name = isUser ? `${comment.user_last_name} ${comment.user_first_name}` : `${comment.op_last_name} ${comment.op_first_name}`;
+                    const role = isUser ? 'Сотрудник' : 'Оператор';
+                    const roleClass = isUser ? 'user' : 'operator';
+
+                    html += `
+                    <div class="chat-message ${roleClass}">
+                        <div class="chat-message-header">${name} (${role})</div>
+                        <div class="chat-message-text">${comment.comment.replace(/\n/g, '<br>')}</div>
+                        <div class="chat-message-time">${comment.created_at}</div>
+                    </div>
+                `;
+                }
+                container.innerHTML = html;
+                container.scrollTop = container.scrollHeight;
+            })
+            .catch(error => {
+                console.error('Ошибка загрузки комментариев:', error);
+                document.getElementById('chatMessages').innerHTML = '<div class="loading-chat">❌ Ошибка загрузки сообщений</div>';
+            });
+    }
+
+    loadComments();
+    setInterval(loadComments, 30000);
+</script>
 {% endblock %}

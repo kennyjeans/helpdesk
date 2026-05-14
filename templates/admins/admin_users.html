@@ -5,7 +5,94 @@
 {% block content %}
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
     <h2>👥 Управление пользователями</h2>
-    <button class="btn btn-primary" onclick="alert('Добавление пользователя в разработке')">➕ Добавить пользователя</button>
+    <div style="display: flex; gap: 10px;">
+        <button class="btn btn-primary" id="importBtn">📥 Импорт из Excel</button>
+        <a href="{{ url_for('admin_user_add') }}" class="btn btn-primary">➕ Добавить пользователя</a>
+    </div>
+</div>
+
+<!-- Модальное окно импорта -->
+<div id="importModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>📥 Импорт пользователей из Excel</h3>
+            <span class="modal-close">&times;</span>
+        </div>
+        <form method="POST" action="{{ url_for('import_users') }}" enctype="multipart/form-data" id="importForm">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>📁 Выберите файл (.xlsx, .xls, .csv)</label>
+                    <input type="file" name="file" accept=".xlsx,.xls,.csv" class="form-control" required>
+                </div>
+
+                <!-- Пример таблицы в виде скриншота (HTML таблица) -->
+                <div class="info-box">
+                    <strong>📋 Пример правильного формата файла:</strong>
+                    <div class="table-example">
+                        <table class="example-table">
+                            <thead>
+                            <tr>
+                                <th>№</th>
+                                <th>Подразделение</th>
+                                <th>Сотрудник</th>
+                                <th>Должность</th>
+                                <th>Телефон</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr style="background: rgba(102, 126, 234, 0.1);">
+                                <td>1</td>
+                                <td>Штат работников аппарата</td>
+                                <td><strong>Кизилов Алексей Владимирович</strong></td>
+                                <td>Главный врач</td>
+                                <td>+7 (962) 000-00-00</td>
+                            </tr>
+                            <tr>
+                                <td>2</td>
+                                <td>Поликлиника №1</td>
+                                <td><strong>Иванова Мария Петровна</strong></td>
+                                <td>Врач-терапевт</td>
+                                <td>8 (915) 123-45-67</td>
+                            </tr>
+                            <tr style="background: rgba(102, 126, 234, 0.1);">
+                                <td>3</td>
+                                <td>Отделение медицинской профилактики</td>
+                                <td><strong>Петров Иван Сергеевич</strong></td>
+                                <td>Медицинская сестра</td>
+                                <td>79161234567</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+<!--                    <p style="margin-top: 10px; font-size: 12px; color: var(&#45;&#45;text-muted);">-->
+<!--                        ✅ Колонки могут называться: "Подразделение", "Сотрудник", "Должность", "Телефон"<br>-->
+<!--                        ✅ Порядок колонок не важен, система сама найдет нужные-->
+<!--                    </p>-->
+                </div>
+
+                <div class="info-box" style="margin-top: 15px;">
+                    <strong>⚠️ Важно:</strong>
+                    <ul>
+                        <li><strong>Номер (№)</strong> - не сохраняется в базу</li>
+                        <li><strong>Логин</strong> - генерируется автоматически: <code>Фамилия + Инициалы (Имя+Отчество)</code><br>
+                            <small>Пример: Иванов Иван Иванович → <code>IvanovII</code></small>
+                        </li>
+                        <li><strong>Временный пароль:</strong> <code>Qwerty123</code></li>
+                        <li><strong>Телефон</strong> - может быть в любом формате: <code>+7(905)123-45-56</code>, <code>8(915)123-45-67</code>, <code>79161234567</code></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" id="cancelImport">Отмена</button>
+                <button type="submit" class="btn btn-primary">📥 Начать импорт</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Пример файла для скачивания -->
+<div style="margin-bottom: 20px;">
+    <a href="#" id="downloadSample" class="btn btn-outline btn-sm">📄 Скачать пример файла</a>
 </div>
 
 <div class="table-responsive">
@@ -16,6 +103,7 @@
             <th>Логин</th>
             <th>ФИО</th>
             <th>Email</th>
+            <th>Подразделение</th>
             <th>Должность</th>
             <th>Телефон</th>
             <th>Дата регистрации</th>
@@ -34,6 +122,9 @@
             </td>
             <td data-label="Email">
                 {{ user.email or '—' }}
+            </td>
+            <td data-label="Подразделение">
+                {{ user.department or '—' }}
             </td>
             <td data-label="Должность">
                 {{ user.post or '—' }}
@@ -118,6 +209,16 @@
         transition: all 0.2s ease;
     }
 
+    .btn-primary {
+        background: linear-gradient(135deg, var(--accent-color), #764ba2);
+        color: white;
+        border: none;
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-1px);
+    }
+
     .btn-danger {
         background: rgba(239, 68, 68, 0.15);
         color: #ef4444;
@@ -132,6 +233,90 @@
     .empty-row td {
         text-align: center;
         padding: 40px;
+    }
+
+    /* Модальное окно */
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.5);
+        backdrop-filter: blur(5px);
+    }
+
+    .modal-content {
+        background: var(--glass-bg);
+        backdrop-filter: blur(var(--blur-amount));
+        border-radius: 24px;
+        width: 90%;
+        max-width: 750px;  /* Увеличено с 550px */
+        margin: 5% auto;
+        border: 1px solid var(--glass-border);
+        box-shadow: var(--shadow-lg);
+    }
+
+    .modal-header {
+        padding: 20px;
+        border-bottom: 1px solid var(--glass-border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-header h3 {
+        margin: 0;
+    }
+
+    .modal-close {
+        font-size: 28px;
+        cursor: pointer;
+        color: var(--text-muted);
+        transition: all 0.2s;
+    }
+
+    .modal-close:hover {
+        color: var(--accent-color);
+    }
+
+    .modal-body {
+        padding: 25px;
+        max-height: 70vh;
+        overflow-y: auto;  /* Добавляем прокрутку если много контента */
+    }
+
+    .modal-footer {
+        padding: 20px;
+        border-top: 1px solid var(--glass-border);
+        display: flex;
+        gap: 15px;
+        justify-content: flex-end;
+    }
+    /* Стили для pre блока */
+    .info-box pre {
+        background: rgba(0,0,0,0.05);
+        padding: 12px;
+        border-radius: 8px;
+        font-size: 12px;
+        overflow-x: auto;
+        white-space: pre-wrap;
+        word-break: break-all;
+        margin-top: 10px;
+    }
+
+    .info-box {
+        background: rgba(102, 126, 234, 0.1);
+        border-radius: 12px;
+        padding: 15px;
+        margin-top: 15px;
+    }
+
+    .info-box ul {
+        margin: 10px 0 0 20px;
+        font-size: 13px;
     }
 
     /* Адаптивность */
@@ -177,6 +362,91 @@
         .actions-cell {
             white-space: normal;
         }
+
+        .modal-content {
+            width: 95%;
+            margin: 15% auto;
+        }
+    }
+    /* Стили для таблицы-примера */
+    .table-example {
+        overflow-x: auto;
+        margin: 10px 0;
+    }
+
+    .example-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+        background: var(--glass-bg);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .example-table th,
+    .example-table td {
+        padding: 8px 10px;
+        text-align: left;
+        border-bottom: 1px solid var(--glass-border);
+    }
+
+    .example-table th {
+        background: rgba(102, 126, 234, 0.15);
+        font-weight: 600;
+        font-size: 11px;
+    }
+
+    .example-table td {
+        font-size: 11px;
+    }
+
+    .example-table tr:hover {
+        background: rgba(102, 126, 234, 0.05);
     }
 </style>
+
+<script>
+    // Модальное окно импорта
+    const modal = document.getElementById('importModal');
+    const importBtn = document.getElementById('importBtn');
+    const cancelImport = document.getElementById('cancelImport');
+    const modalClose = document.querySelector('.modal-close');
+
+    importBtn.onclick = function() {
+        modal.style.display = 'block';
+    }
+
+    function closeModal() {
+        modal.style.display = 'none';
+    }
+
+    cancelImport.onclick = closeModal;
+    modalClose.onclick = closeModal;
+
+    window.onclick = function(event) {
+        if (event.target === modal) {
+            closeModal();
+        }
+    }
+
+    // Скачивание примера файла
+    document.getElementById('downloadSample').onclick = function(e) {
+        e.preventDefault();
+        const sampleData = [
+            ['№', 'Подразделение', 'Сотрудник', 'Должность', 'Телефон'],
+            [1, 'Поликлиника №1', 'Иванов Иван Иванович', 'Врач-терапевт', '+7 (901) 234-56-78'],
+            [2, 'Поликлиника №1', 'Петрова Анна Сергеевна', 'Медицинская сестра', '8 (915) 123-45-67'],
+            [3, 'РКБ', 'Сидоров Петр Алексеевич', 'Врач-хирург', '79123456789'],
+            [4, 'Отделение медицинской профилактики', 'Кузнецова Елена Владимировна', 'Заведующий отделением', '+79161234567']
+        ];
+
+        const ws = XLSX.utils.aoa_to_sheet(sampleData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Пользователи');
+        XLSX.writeFile(wb, 'sample_users_import.xlsx');
+    };
+</script>
+
+<!-- Подключаем XLSX библиотеку для скачивания примера -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 {% endblock %}
