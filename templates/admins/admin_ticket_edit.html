@@ -26,6 +26,8 @@
                 <span class="info-label">Телефон:</span>
                 <span class="info-value">{{ ticket.phone }}</span>
             </div>
+            <div>
+            </div>
         </div>
     </div>
 
@@ -41,6 +43,15 @@
             <label>📝 Описание проблемы</label>
             <textarea class="form-control" rows="5" readonly disabled>{{ ticket.description }}</textarea>
         </div>
+
+        <div class="chat-section">
+            <h3>💬 Переписка</h3>
+            <div class="chat-messages" id="chatMessages">
+                <div class="loading-chat">Загрузка сообщений...</div>
+            </div>
+        </div>
+
+        <hr>
 
         <div class="form-row">
             <div class="form-group">
@@ -73,11 +84,6 @@
                 </option>
                 {% endfor %}
             </select>
-        </div>
-
-        <div class="form-group">
-            <label>💬 Ответ оператора</label>
-            <textarea name="operator_answer" rows="5" class="form-control" placeholder="Ответ оператора...">{{ ticket.operator_answer or '' }}</textarea>
         </div>
 
         <div class="info-block">
@@ -141,16 +147,95 @@
         color: var(--text-primary);
     }
 
+    .description-box {
+        background: rgba(102, 126, 234, 0.05);
+        padding: 15px;
+        border-radius: 12px;
+        margin-top: 5px;
+        white-space: pre-wrap;
+        word-break: break-word;
+        line-height: 1.5;
+    }
+
     .form-row {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 20px;
+        margin-bottom: 20px;
     }
 
     .action-buttons {
         display: flex;
         gap: 15px;
         margin-top: 20px;
+    }
+
+    /* Стили для чата */
+    .chat-section {
+        margin: 25px 0;
+        border-top: 1px solid var(--glass-border);
+        padding-top: 20px;
+    }
+
+    .chat-section h3 {
+        margin-bottom: 15px;
+    }
+
+    .chat-messages {
+        background: rgba(102, 126, 234, 0.05);
+        border-radius: 16px;
+        padding: 20px;
+        max-height: 400px;
+        overflow-y: auto;
+    }
+
+    .chat-message {
+        margin-bottom: 15px;
+        padding: 12px 15px;
+        border-radius: 12px;
+        animation: fadeIn 0.3s ease;
+    }
+
+    .chat-message.user {
+        background: rgba(102, 126, 234, 0.15);
+        border-left: 3px solid var(--accent-color);
+    }
+
+    .chat-message.operator {
+        background: rgba(16, 185, 129, 0.1);
+        border-left: 3px solid #10b981;
+    }
+
+    .chat-message-header {
+        font-size: 12px;
+        font-weight: 600;
+        margin-bottom: 5px;
+        color: var(--text-muted);
+    }
+
+    .chat-message-text {
+        font-size: 14px;
+        line-height: 1.4;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+
+    .chat-message-time {
+        font-size: 10px;
+        color: var(--text-muted);
+        margin-top: 5px;
+        text-align: right;
+    }
+
+    .loading-chat {
+        text-align: center;
+        padding: 20px;
+        color: var(--text-muted);
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(5px); }
+        to { opacity: 1; transform: translateY(0); }
     }
 
     @media (max-width: 768px) {
@@ -169,4 +254,56 @@
         }
     }
 </style>
+
+<script>
+    // Загрузка комментариев
+    function loadComments() {
+        fetch('/ticket/{{ ticket.id }}/comments')
+            .then(response => response.json())
+            .then(data => {
+                const container = document.getElementById('chatMessages');
+                if (!container) return;
+
+                if (data.comments.length === 0) {
+                    container.innerHTML = '<div class="loading-chat">💬 Нет сообщений</div>';
+                    return;
+                }
+
+                let html = '';
+                for (let comment of data.comments) {
+                    const isUser = comment.user_id !== null;
+                    const name = isUser ? `${comment.user_last_name} ${comment.user_first_name}` : `${comment.op_last_name} ${comment.op_first_name}`;
+                    const role = isUser ? 'Пользователь' : 'Оператор';
+                    const roleClass = isUser ? 'user' : 'operator';
+
+                    html += `
+                        <div class="chat-message ${roleClass}">
+                            <div class="chat-message-header">${escapeHtml(name)} (${role})</div>
+                            <div class="chat-message-text">${escapeHtml(comment.comment).replace(/\n/g, '<br>')}</div>
+                            <div class="chat-message-time">${comment.created_at}</div>
+                        </div>
+                    `;
+                }
+                container.innerHTML = html;
+                container.scrollTop = container.scrollHeight;
+            })
+            .catch(error => {
+                console.error('Ошибка загрузки комментариев:', error);
+                document.getElementById('chatMessages').innerHTML = '<div class="loading-chat">❌ Ошибка загрузки сообщений</div>';
+            });
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Загружаем комментарии при загрузке страницы
+    loadComments();
+
+    // Автоматически обновляем каждые 30 секунд
+    setInterval(loadComments, 30000);
+</script>
 {% endblock %}

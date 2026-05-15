@@ -5,7 +5,7 @@
 {% block content %}
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
     <h2>👨‍💼 Управление операторами</h2>
-    <button class="btn btn-primary" onclick="alert('Добавление оператора в разработке')">➕ Добавить оператора</button>
+    <a href="{{ url_for('admin_operator_add') }}" class="btn btn-primary">➕ Добавить оператора</a>
 </div>
 
 <div class="table-responsive">
@@ -38,6 +38,7 @@
             </td>
             <td data-label="Действия" class="actions-cell">
                 <a href="{{ url_for('admin_operator_edit', operator_id=operator.id) }}" class="btn btn-sm btn-primary">✏️ Редактировать</a>
+                <a href="{{ url_for('admin_operator_reset_password', operator_id=operator.id) }}" class="btn btn-sm btn-warning">🔑 Сброс пароля</a>
                 <a href="{{ url_for('admin_operator_delete', operator_id=operator.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Удалить оператора {{ operator.username }}?')">🗑️ Удалить</a>
             </td>
         </tr>

@@ -7,46 +7,210 @@
 <p class="text-muted">Управление параметрами системы</p>
 
 <div class="settings-grid">
+    <!-- Организация -->
     <div class="settings-card">
         <div class="settings-icon">🏢</div>
         <h3>Организация</h3>
         <p>Настройка информации об организации</p>
-        <button class="btn btn-outline btn-sm" onclick="alert('В разработке')">Редактировать</button>
+        <button class="btn btn-outline btn-sm" onclick="openOrgModal()">Редактировать</button>
     </div>
 
+    <!-- Уведомления -->
     <div class="settings-card">
         <div class="settings-icon">🔔</div>
         <h3>Уведомления</h3>
         <p>Настройка email и push уведомлений</p>
-        <button class="btn btn-outline btn-sm" onclick="alert('В разработке')">Редактировать</button>
+        <button class="btn btn-outline btn-sm" onclick="openNotificationsModal()">Редактировать</button>
     </div>
 
+    <!-- Роли и права -->
     <div class="settings-card">
         <div class="settings-icon">👨‍💼</div>
         <h3>Роли и права</h3>
         <p>Управление правами доступа</p>
-        <button class="btn btn-outline btn-sm" onclick="alert('В разработке')">Редактировать</button>
+        <a href="{{ url_for('admin_roles') }}" class="btn btn-outline btn-sm">⚙️ Управление</a>
     </div>
 
+    <!-- Экспорт заявок -->
     <div class="settings-card">
-        <div class="settings-icon">🖨️</div>
-        <h3>Оборудование</h3>
-        <p>Настройка списка оборудования</p>
-        <button class="btn btn-outline btn-sm" onclick="alert('В разработке')">Редактировать</button>
+        <div class="settings-icon">📊</div>
+        <h3>Экспорт заявок</h3>
+        <p>Выгрузка заявок в Excel</p>
+        <a href="{{ url_for('export_tickets') }}" class="btn btn-outline btn-sm">📥 Экспортировать</a>
     </div>
 
+    <!-- Резервное копирование -->
     <div class="settings-card">
         <div class="settings-icon">💾</div>
         <h3>Резервное копирование</h3>
-        <p>Экспорт и импорт данных</p>
-        <button class="btn btn-outline btn-sm" onclick="alert('В разработке')">Экспорт</button>
+        <p>Бэкап базы данных в папку</p>
+        <div style="display: flex; gap: 5px; flex-wrap: wrap; justify-content: center;">
+            <a href="{{ url_for('admin_backup') }}" class="btn btn-outline btn-sm">📥 Создать бэкап</a>
+            <button class="btn btn-outline btn-sm" onclick="showBackupsList()">📋 Список бэкапов</button>
+        </div>
     </div>
 
+    <!-- Администраторы -->
     <div class="settings-card">
         <div class="settings-icon">👑</div>
         <h3>Администраторы</h3>
         <p>Управление администраторами</p>
-        <button class="btn btn-outline btn-sm" onclick="alert('В разработке')">Редактировать</button>
+        <button class="btn btn-outline btn-sm" onclick="openAdminsModal()">Редактировать</button>
+    </div>
+</div>
+
+<!-- Модальное окно организации -->
+<div id="orgModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>🏢 Настройка организации</h3>
+            <span class="modal-close" onclick="closeModal('orgModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Название организации</label>
+                <input type="text" id="orgName" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>Телефон поддержки</label>
+                <input type="text" id="orgPhone" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>Email поддержки</label>
+                <input type="email" id="orgEmail" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>Адрес</label>
+                <input type="text" id="orgAddress" class="form-control">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('orgModal')">Отмена</button>
+            <button class="btn btn-primary" onclick="saveOrgSettings()">Сохранить</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно уведомлений -->
+<div id="notificationsModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>🔔 Настройка уведомлений</h3>
+            <span class="modal-close" onclick="closeModal('notificationsModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="notifyNewTicket"> Уведомлять о новых заявках
+                </label>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="notifyStatusChange"> Уведомлять об изменении статуса
+                </label>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="notifyComment"> Уведомлять о новых комментариях
+                </label>
+            </div>
+            <hr>
+            <div class="form-group">
+                <label>Email для уведомлений</label>
+                <input type="email" id="notificationEmail" class="form-control">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('notificationsModal')">Отмена</button>
+            <button class="btn btn-primary" onclick="saveNotificationSettings()">Сохранить</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно ролей и прав -->
+<div id="rolesModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>👨‍💼 Роли и права</h3>
+            <span class="modal-close" onclick="closeModal('rolesModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="roleUsers"> Управление пользователями
+                </label>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="roleOperators"> Управление операторами
+                </label>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="roleTickets"> Управление заявками
+                </label>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="roleSettings"> Доступ к настройкам
+                </label>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('rolesModal')">Отмена</button>
+            <button class="btn btn-primary" onclick="saveRolesSettings()">Сохранить</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно администраторов -->
+<div id="adminsModal" class="modal">
+    <div class="modal-content" style="max-width: 650px;">
+        <div class="modal-header">
+            <h3>👑 Управление администраторами</h3>
+            <span class="modal-close" onclick="closeModal('adminsModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>➕ Добавить нового администратора</label>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                    <input type="text" id="newAdminUsername" class="form-control" placeholder="Логин :Admin_SemenovAV">
+                    <input type="password" id="newAdminPassword" class="form-control" placeholder="Пароль: Admin_210101">
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                    <input type="text" id="newAdminLastName" class="form-control" placeholder="Фамилия">
+                    <input type="text" id="newAdminFirstName" class="form-control" placeholder="Имя">
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <input type="text" id="newAdminMiddleName" class="form-control" placeholder="Отчество">
+                    <input type="email" id="newAdminEmail" class="form-control" placeholder="Email: SemenovAV@mosreg.ru">
+                </div>
+                <button class="btn btn-primary btn-sm" style="margin-top: 10px; width: 100%;" onclick="addAdmin()">➕ Добавить администратора</button>
+            </div>
+            <hr>
+            <div id="adminsList">
+                <div class="loading">Загрузка...</div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('adminsModal')">Закрыть</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно списка бэкапов -->
+<div id="backupsModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>💾 Резервные копии</h3>
+            <span class="modal-close" onclick="closeModal('backupsModal')">&times;</span>
+        </div>
+        <div class="modal-body" id="backupsList">
+            <div class="loading">Загрузка...</div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('backupsModal')">Закрыть</button>
+        </div>
     </div>
 </div>
 
@@ -87,5 +251,392 @@
         color: var(--text-muted);
         margin-bottom: 15px;
     }
+
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.5);
+        backdrop-filter: blur(5px);
+    }
+
+    .modal-content {
+        background: var(--glass-bg);
+        backdrop-filter: blur(var(--blur-amount));
+        border-radius: 24px;
+        width: 90%;
+        max-width: 550px;
+        margin: 5% auto;
+        border: 1px solid var(--glass-border);
+        box-shadow: var(--shadow-lg);
+    }
+
+    .modal-header {
+        padding: 20px;
+        border-bottom: 1px solid var(--glass-border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-header h3 {
+        margin: 0;
+    }
+
+    .modal-close {
+        font-size: 28px;
+        cursor: pointer;
+        color: var(--text-muted);
+        transition: all 0.2s;
+    }
+
+    .modal-close:hover {
+        color: var(--accent-color);
+    }
+
+    .modal-body {
+        padding: 20px;
+        max-height: 60vh;
+        overflow-y: auto;
+    }
+
+    .modal-footer {
+        padding: 20px;
+        border-top: 1px solid var(--glass-border);
+        display: flex;
+        gap: 15px;
+        justify-content: flex-end;
+    }
+
+    .backup-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px;
+        border-bottom: 1px solid var(--glass-border);
+    }
+
+    .backup-item:last-child {
+        border-bottom: none;
+    }
+
+    .backup-info {
+        flex: 1;
+    }
+
+    .backup-name {
+        font-weight: 600;
+    }
+
+    .backup-date {
+        font-size: 11px;
+        color: var(--text-muted);
+    }
+
+    .admin-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px;
+        border-bottom: 1px solid var(--glass-border);
+    }
+
+    .loading {
+        text-align: center;
+        padding: 20px;
+        color: var(--text-muted);
+    }
+
+    hr {
+        margin: 15px 0;
+    }
+
+    @media (max-width: 768px) {
+        .settings-grid {
+            grid-template-columns: 1fr;
+        }
+        .modal-content {
+            width: 95%;
+            margin: 15% auto;
+        }
+    }
 </style>
+
+<script>
+    // Организация
+    function openOrgModal() {
+        fetch('/admin/settings/organization')
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('orgName').value = data.org_name;
+                document.getElementById('orgPhone').value = data.org_phone;
+                document.getElementById('orgEmail').value = data.org_email;
+                document.getElementById('orgAddress').value = data.org_address;
+                openModal('orgModal');
+            });
+    }
+
+    function saveOrgSettings() {
+        const data = {
+            org_name: document.getElementById('orgName').value,
+            org_phone: document.getElementById('orgPhone').value,
+            org_email: document.getElementById('orgEmail').value,
+            org_address: document.getElementById('orgAddress').value
+        };
+
+        fetch('/admin/settings/organization', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        }).then(() => {
+            closeModal('orgModal');
+            alert('✅ Настройки сохранены');
+        });
+    }
+
+    // Уведомления
+    function openNotificationsModal() {
+        fetch('/admin/settings/notifications')
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('notifyNewTicket').checked = data.notify_new_ticket;
+                document.getElementById('notifyStatusChange').checked = data.notify_status_change;
+                document.getElementById('notifyComment').checked = data.notify_comment;
+                document.getElementById('notificationEmail').value = data.email_user || '';
+                openModal('notificationsModal');
+            });
+    }
+
+    function saveNotificationSettings() {
+        const data = {
+            notify_new_ticket: document.getElementById('notifyNewTicket').checked,
+            notify_status_change: document.getElementById('notifyStatusChange').checked,
+            notify_comment: document.getElementById('notifyComment').checked,
+            email_user: document.getElementById('notificationEmail').value
+        };
+
+        fetch('/admin/settings/notifications', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        }).then(() => {
+            closeModal('notificationsModal');
+            alert('✅ Настройки сохранены');
+        });
+    }
+
+    // Роли и права
+    function openRolesModal() {
+        const roles = JSON.parse(localStorage.getItem('roles') || '{}');
+        document.getElementById('roleUsers').checked = roles.users !== false;
+        document.getElementById('roleOperators').checked = roles.operators !== false;
+        document.getElementById('roleTickets').checked = roles.tickets !== false;
+        document.getElementById('roleSettings').checked = roles.settings !== false;
+        openModal('rolesModal');
+    }
+
+    function saveRolesSettings() {
+        const roles = {
+            users: document.getElementById('roleUsers').checked,
+            operators: document.getElementById('roleOperators').checked,
+            tickets: document.getElementById('roleTickets').checked,
+            settings: document.getElementById('roleSettings').checked
+        };
+        localStorage.setItem('roles', JSON.stringify(roles));
+        closeModal('rolesModal');
+        alert('✅ Настройки сохранены');
+    }
+
+    // Администраторы
+    function openAdminsModal() {
+        loadAdminsList();
+        // Очищаем форму
+        document.getElementById('newAdminUsername').value = '';
+        document.getElementById('newAdminPassword').value = '';
+        document.getElementById('newAdminLastName').value = '';
+        document.getElementById('newAdminFirstName').value = '';
+        document.getElementById('newAdminMiddleName').value = '';
+        document.getElementById('newAdminEmail').value = '';
+        openModal('adminsModal');
+    }
+
+    function loadAdminsList() {
+        fetch('/admin/admins/list')
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('adminsList');
+                if (data.admins && data.admins.length) {
+                    const currentAdminId = {{ session.admin_id }};
+                    container.innerHTML = data.admins.map(admin => `
+                    <div class="admin-item">
+                        <div class="admin-info">
+                            <div class="admin-name">
+                                <strong>${escapeHtml(admin.username)}</strong>
+                                ${admin.id === currentAdminId ? '<span class="badge-current">(Вы)</span>' : ''}
+                            </div>
+                            <div class="admin-details">
+                                ${admin.last_name ? admin.last_name + ' ' : ''}${admin.first_name ? admin.first_name + ' ' : ''}${admin.middle_name ? admin.middle_name : ''}
+                                <br><small>${admin.email || ''}</small>
+                            </div>
+                            <div class="admin-meta">
+                                Создан: ${admin.created_at ? admin.created_at.slice(0, 16) : ''}
+                            </div>
+                        </div>
+                        <div class="admin-actions">
+                            <button class="btn btn-sm btn-warning" onclick="resetAdminPassword(${admin.id}, '${escapeHtml(admin.username)}')">🔑 Сброс пароля</button>
+                            ${admin.id !== currentAdminId ? `<button class="btn btn-sm btn-danger" onclick="deleteAdmin(${admin.id}, '${escapeHtml(admin.username)}')">🗑️ Удалить</button>` : ''}
+                        </div>
+                    </div>
+                `).join('');
+                } else {
+                    container.innerHTML = '<div class="loading">👑 Администраторов не найдено</div>';
+                }
+            })
+            .catch(error => {
+                document.getElementById('adminsList').innerHTML = '<div class="loading">❌ Ошибка загрузки</div>';
+            });
+    }
+
+    function addAdmin() {
+        const username = document.getElementById('newAdminUsername').value.trim();
+        const password = document.getElementById('newAdminPassword').value;
+        const email = document.getElementById('newAdminEmail').value.trim();
+        const lastName = document.getElementById('newAdminLastName').value.trim();
+        const firstName = document.getElementById('newAdminFirstName').value.trim();
+        const middleName = document.getElementById('newAdminMiddleName').value.trim();
+
+        if (!username) {
+            alert('Введите логин');
+            return;
+        }
+        if (!password) {
+            alert('Введите пароль');
+            return;
+        }
+        if (password.length < 6) {
+            alert('Пароль должен быть не менее 6 символов');
+            return;
+        }
+        if (!email) {
+            alert('Введите email');
+            return;
+        }
+
+        fetch('/admin/admins/add', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                username: username,
+                password: password,
+                email: email,
+                last_name: lastName,
+                first_name: firstName,
+                middle_name: middleName
+            })
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ Администратор добавлен');
+                    loadAdminsList();
+                    document.getElementById('newAdminUsername').value = '';
+                    document.getElementById('newAdminPassword').value = '';
+                    document.getElementById('newAdminLastName').value = '';
+                    document.getElementById('newAdminFirstName').value = '';
+                    document.getElementById('newAdminMiddleName').value = '';
+                    document.getElementById('newAdminEmail').value = '';
+                } else {
+                    alert('❌ Ошибка: ' + (data.errors ? data.errors.join(', ') : 'Неизвестная ошибка'));
+                }
+            });
+    }
+
+    function deleteAdmin(adminId, username) {
+        if (confirm(`Удалить администратора "${username}"?`)) {
+            fetch(`/admin/admins/delete/${adminId}`, {method: 'DELETE'})
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('✅ Администратор удален');
+                        loadAdminsList();
+                    } else {
+                        alert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+                    }
+                });
+        }
+    }
+
+    function resetAdminPassword(adminId, username) {
+        const newPassword = prompt(`Введите новый пароль для администратора "${username}":`);
+        if (newPassword && newPassword.length >= 6) {
+            fetch(`/admin/admins/reset_password/${adminId}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({password: newPassword})
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('✅ Пароль успешно изменен');
+                    } else {
+                        alert('❌ Ошибка: ' + (data.error || 'Неизвестная ошибка'));
+                    }
+                });
+        } else if (newPassword) {
+            alert('Пароль должен быть не менее 6 символов');
+        }
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Бэкапы
+    function showBackupsList() {
+        fetch('/admin/backup/list')
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('backupsList');
+                if (data.backups && data.backups.length) {
+                    container.innerHTML = data.backups.map(backup => `
+                        <div class="backup-item">
+                            <div class="backup-info">
+                                <div class="backup-name">${backup.name}</div>
+                                <div class="backup-date">${backup.date} (${backup.size})</div>
+                            </div>
+                            <div>
+                                <a href="/admin/backup/restore/${backup.name}" class="btn btn-sm btn-primary" onclick="return confirm('Восстановить? Текущие данные будут заменены!')">Восстановить</a>
+                                <a href="/admin/backup/delete/${backup.name}" class="btn btn-sm btn-danger" onclick="return confirm('Удалить бэкап?')">Удалить</a>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<div class="loading">💾 Резервных копий не найдено</div>';
+                }
+                openModal('backupsModal');
+            });
+    }
+
+    // Модальные окна
+    function openModal(id) {
+        document.getElementById(id).style.display = 'block';
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).style.display = 'none';
+    }
+
+    window.onclick = function(event) {
+        document.querySelectorAll('.modal').forEach(modal => {
+            if (event.target === modal) modal.style.display = 'none';
+        });
+    }
+</script>
 {% endblock %}

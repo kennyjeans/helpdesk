@@ -137,6 +137,7 @@
             </td>
             <td data-label="Действия" class="actions-cell">
                 <a href="{{ url_for('admin_user_edit', user_id=user.id) }}" class="btn btn-sm btn-primary">✏️ Редактировать</a>
+                <a href="{{ url_for('admin_user_reset_password', user_id=user.id) }}" class="btn btn-sm btn-warning">🔑 Сброс пароля</a>
                 <a href="{{ url_for('admin_user_delete', user_id=user.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Удалить пользователя {{ user.username }}?')">🗑️ Удалить</a>
             </td>
         </tr>

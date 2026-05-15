@@ -3,8 +3,10 @@ import sqlite3
 from datetime import datetime
 import hashlib
 import os
+from functools import wraps
 import re
 import pandas as pd
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file
 
 app = Flask(__name__)
 app.secret_key = 'mysecretkey_vrkb_System210101'
@@ -22,7 +24,22 @@ def init_db():
 
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
-
+    # Таблица уведомлений
+    c.execute('''CREATE TABLE IF NOT EXISTS notifications (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER,
+                        operator_id INTEGER,
+                        admin_id INTEGER,
+                        title TEXT NOT NULL,
+                        message TEXT NOT NULL,
+                        type TEXT DEFAULT 'info',
+                        is_read INTEGER DEFAULT 0,
+                        link TEXT,
+                        created_at TEXT NOT NULL,
+                        FOREIGN KEY (user_id) REFERENCES users (id),
+                        FOREIGN KEY (operator_id) REFERENCES operators (id),
+                        FOREIGN KEY (admin_id) REFERENCES admins (id)
+                    )''')
     # функции comments:
     c.execute('''CREATE TABLE IF NOT EXISTS comments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -36,7 +53,6 @@ def init_db():
         FOREIGN KEY (user_id) REFERENCES users (id),
         FOREIGN KEY (operator_id) REFERENCES operators (id)
     )''')
-    print("✅ Создана таблица comments")
 
     # функция answer_templates:
     c.execute('''CREATE TABLE IF NOT EXISTS answer_templates (
@@ -137,6 +153,7 @@ def init_db():
         FOREIGN KEY (assigned_to) REFERENCES operators (id)
     )''')
 
+
     # Добавляем колонку subject, если её нет (для старых баз)
     try:
         c.execute("ALTER TABLE tickets ADD COLUMN subject TEXT")
@@ -167,11 +184,11 @@ def init_db():
     # Добавляем тестового оператора (только если таблица пустая)
     c.execute("SELECT COUNT(*) FROM operators")
     if c.fetchone()[0] == 0:
-        hashed_pwd_admin = hashlib.sha256('admin123'.encode()).hexdigest()
+        hashed_pwd_operator = hashlib.sha256('operator123'.encode()).hexdigest()
         c.execute(
             "INSERT INTO operators (username, password, last_name, first_name, middle_name, post) VALUES (?, ?, ?, ?, ?, ?)",
-            ('admin', hashed_pwd_admin, 'Иванов', 'Иван', 'Иванович', 'Главный специалист IT отдела'))
-        print("✅ Добавлен оператор: admin / admin123")
+            ('operator', hashed_pwd_operator, 'Технический', 'Оператор', 'IT-отдела', 'Специалист IT отдела'))
+        print("✅ Добавлен оператор: operator / operator123")
 
     # Добавляем тестового пользователя (только если таблица пустая)
     c.execute("SELECT COUNT(*) FROM users")
@@ -183,14 +200,128 @@ def init_db():
              'Врач-терапевт', '79012345678', datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
         print("✅ Добавлен пользователь: user / user123")
 
-    conn.commit()
-    conn.close()
-    print("🎉 База данных готова!")
+        # ============ ТАБЛИЦЫ ДЛЯ РОЛЕЙ И ПРАВ ============
+
+        # Таблица ролей
+        c.execute('''CREATE TABLE IF NOT EXISTS roles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            description TEXT,
+            created_at TEXT NOT NULL
+        )''')
+
+        # Таблица разрешений
+        c.execute('''CREATE TABLE IF NOT EXISTS permissions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            description TEXT
+        )''')
+
+        # Таблица связей ролей и разрешений
+        c.execute('''CREATE TABLE IF NOT EXISTS role_permissions (
+            role_id INTEGER,
+            permission_id INTEGER,
+            FOREIGN KEY (role_id) REFERENCES roles (id),
+            FOREIGN KEY (permission_id) REFERENCES permissions (id),
+            PRIMARY KEY (role_id, permission_id)
+        )''')
+
+        # Таблица назначения ролей пользователям
+        c.execute('''CREATE TABLE IF NOT EXISTS user_roles (
+            user_id INTEGER,
+            role_id INTEGER,
+            FOREIGN KEY (user_id) REFERENCES users (id),
+            FOREIGN KEY (role_id) REFERENCES roles (id),
+            PRIMARY KEY (user_id, role_id)
+        )''')
+
+
+        # Добавляем базовые роли
+        c.execute("SELECT COUNT(*) FROM roles")
+        if c.fetchone()[0] == 0:
+            roles_data = [
+                ('super_admin', 'Полный доступ ко всем функциям системы'),
+                ('admin', 'Доступ к управлению пользователями, операторами, заявками'),
+                ('operator', 'Доступ к обработке заявок'),
+                ('user', 'Базовый доступ: создание и просмотр своих заявок')
+            ]
+            for name, desc in roles_data:
+                c.execute("INSERT INTO roles (name, description, created_at) VALUES (?, ?, ?)",
+                          (name, desc, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+            print("✅ Добавлены базовые роли")
+
+        # Добавляем разрешения (используем другое имя переменной)
+        c.execute("SELECT COUNT(*) FROM permissions")
+        if c.fetchone()[0] == 0:
+            permissions_data = [
+                ('users_view', 'Просмотр списка пользователей'),
+                ('users_edit', 'Редактирование пользователей'),
+                ('users_delete', 'Удаление пользователей'),
+                ('users_create', 'Создание пользователей'),
+                ('operators_view', 'Просмотр списка операторов'),
+                ('operators_edit', 'Редактирование операторов'),
+                ('operators_delete', 'Удаление операторов'),
+                ('operators_create', 'Создание операторов'),
+                ('tickets_view_all', 'Просмотр всех заявок'),
+                ('tickets_edit_all', 'Редактирование всех заявок'),
+                ('tickets_delete_all', 'Удаление всех заявок'),
+                ('settings_view', 'Просмотр настроек'),
+                ('settings_edit', 'Редактирование настроек'),
+                ('backup_manage', 'Управление резервными копиями'),
+                ('export_data', 'Экспорт данных')
+            ]
+            for name, desc in permissions_data:
+                c.execute("INSERT INTO permissions (name, description) VALUES (?, ?)", (name, desc))
+            print("✅ Добавлены базовые разрешения")
+
+        # Назначаем разрешения для ролей
+        # super_admin - все права
+        super_admin_id = c.execute("SELECT id FROM roles WHERE name = 'super_admin'").fetchone()
+        if super_admin_id:
+            super_admin_id = super_admin_id[0]
+            for perm in permissions_data:
+                perm_id = c.execute("SELECT id FROM permissions WHERE name = ?", (perm[0],)).fetchone()
+                if perm_id:
+                    c.execute("INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)",
+                              (super_admin_id, perm_id[0]))
+
+        # admin - основные права
+        admin_id = c.execute("SELECT id FROM roles WHERE name = 'admin'").fetchone()
+        if admin_id:
+            admin_id = admin_id[0]
+            admin_perms = ['users_view', 'users_edit', 'users_delete', 'users_create',
+                           'operators_view', 'operators_edit', 'operators_delete', 'operators_create',
+                           'tickets_view_all', 'tickets_edit_all', 'settings_view', 'settings_edit',
+                           'backup_manage', 'export_data']
+            for perm_name in admin_perms:
+                perm_id = c.execute("SELECT id FROM permissions WHERE name = ?", (perm_name,)).fetchone()
+                if perm_id:
+                    c.execute("INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)",
+                              (admin_id, perm_id[0]))
+
+        # operator - права оператора
+        operator_id = c.execute("SELECT id FROM roles WHERE name = 'operator'").fetchone()
+        if operator_id:
+            operator_id = operator_id[0]
+            operator_perms = ['tickets_view_all', 'tickets_edit_all']
+            for perm_name in operator_perms:
+                perm_id = c.execute("SELECT id FROM permissions WHERE name = ?", (perm_name,)).fetchone()
+                if perm_id:
+                    c.execute("INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)",
+                              (operator_id, perm_id[0]))
+
+
+        conn.commit()
+        conn.close()
+        print("🎉 База данных готова!")
 
 
 def get_db_connection():
-    conn = sqlite3.connect('databases/database_helpdesk.db')
+    conn = sqlite3.connect('databases/database_helpdesk.db', timeout=20)
     conn.row_factory = sqlite3.Row
+    # Включаем WAL режим (Write-Ahead Logging)
+    conn.execute('PRAGMA journal_mode=WAL')
+    conn.execute('PRAGMA synchronous=NORMAL')
     return conn
 
 
@@ -215,6 +346,32 @@ def operator_required(f):
     decorated_function.__name__ = f.__name__
     return decorated_function
 
+def has_permission(user_id, permission_name):
+    """Проверка наличия разрешения у пользователя"""
+    conn = get_db_connection()
+    result = conn.execute('''
+        SELECT 1 FROM user_roles ur
+        JOIN role_permissions rp ON ur.role_id = rp.role_id
+        JOIN permissions p ON rp.permission_id = p.id
+        WHERE ur.user_id = ? AND p.name = ?
+    ''', (user_id, permission_name)).fetchone()
+    conn.close()
+    return result is not None
+
+def permission_required(permission_name):
+    """Декоратор для проверки разрешений"""
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if not session.get('user_id'):
+                flash('Пожалуйста, войдите в систему', 'warning')
+                return redirect(url_for('login'))
+            if not has_permission(session['user_id'], permission_name):
+                flash('У вас нет прав для выполнения этого действия', 'danger')
+                return redirect(url_for('dashboard'))
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
 
 # ===================== ГЛАВНОЕ МЕНЮ =====================
 @app.route('/')
@@ -467,6 +624,109 @@ def admin_dashboard():
                            recent_tickets=recent_tickets)
 
 
+# ===================== УПРАВЛЕНИЕ АДМИНИСТРАТОРАМИ =====================
+
+@app.route('/admin/admins/list')
+@admin_required
+def admin_admins_list():
+    """Список всех администраторов"""
+    conn = get_db_connection()
+    admins = conn.execute('''
+        SELECT id, username, last_name, first_name, email, created_at 
+        FROM admins 
+        ORDER BY id
+    ''').fetchall()
+    conn.close()
+
+    return jsonify({'admins': [dict(a) for a in admins]})
+
+
+@app.route('/admin/admins/add', methods=['POST'])
+@admin_required
+def admin_admins_add():
+    """Добавление нового администратора"""
+    data = request.json
+    username = data.get('username', '').strip()
+    password = data.get('password', '')
+    email = data.get('email', '').strip()
+    last_name = data.get('last_name', '').strip()
+    first_name = data.get('first_name', '').strip()
+    middle_name = data.get('middle_name', '').strip()
+
+    # Валидация
+    errors = []
+    if not username:
+        errors.append('Логин обязателен')
+    if len(password) < 6:
+        errors.append('Пароль должен быть не менее 6 символов')
+    if not email:
+        errors.append('Email обязателен')
+
+    if errors:
+        return jsonify({'success': False, 'errors': errors})
+
+    conn = get_db_connection()
+
+    # Проверка уникальности логина
+    existing = conn.execute('SELECT id FROM admins WHERE username = ?', (username,)).fetchone()
+    if existing:
+        conn.close()
+        return jsonify({'success': False, 'errors': ['Администратор с таким логином уже существует']})
+
+    # Проверка уникальности email
+    existing_email = conn.execute('SELECT id FROM admins WHERE email = ?', (email,)).fetchone()
+    if existing_email:
+        conn.close()
+        return jsonify({'success': False, 'errors': ['Администратор с таким email уже существует']})
+
+    hashed_pwd = hashlib.sha256(password.encode()).hexdigest()
+    created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    conn.execute('''
+        INSERT INTO admins (username, password, last_name, first_name, middle_name, email, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''', (username, hashed_pwd, last_name, first_name, middle_name, email, created_at))
+    conn.commit()
+    conn.close()
+
+    return jsonify({'success': True})
+
+
+@app.route('/admin/admins/delete/<int:admin_id>', methods=['DELETE'])
+@admin_required
+def admin_admins_delete(admin_id):
+    """Удаление администратора"""
+    # Нельзя удалить самого себя
+    if admin_id == session.get('admin_id'):
+        return jsonify({'success': False, 'error': 'Нельзя удалить самого себя'})
+
+    conn = get_db_connection()
+    conn.execute('DELETE FROM admins WHERE id = ?', (admin_id,))
+    conn.commit()
+    conn.close()
+
+    return jsonify({'success': True})
+
+
+@app.route('/admin/admins/reset_password/<int:admin_id>', methods=['POST'])
+@admin_required
+def admin_admins_reset_password(admin_id):
+    """Сброс пароля администратора"""
+    data = request.json
+    new_password = data.get('password', '')
+
+    if len(new_password) < 6:
+        return jsonify({'success': False, 'error': 'Пароль должен быть не менее 6 символов'})
+
+    hashed_pwd = hashlib.sha256(new_password.encode()).hexdigest()
+
+    conn = get_db_connection()
+    conn.execute('UPDATE admins SET password = ? WHERE id = ?', (hashed_pwd, admin_id))
+    conn.commit()
+    conn.close()
+
+    return jsonify({'success': True})
+
 @app.route('/admin/users')
 @admin_required
 def admin_users():
@@ -488,9 +748,217 @@ def admin_operators():
 @app.route('/admin/tickets')
 @admin_required
 def admin_tickets():
+    status_filter = request.args.get('status', 'all')
+    conn = get_db_connection()
+
+    if status_filter == 'all':
+        tickets = conn.execute('''
+            SELECT t.*, u.last_name, u.first_name, u.username, u.email, u.post, u.phone,
+                   o.last_name as op_last_name, o.first_name as op_first_name
+            FROM tickets t 
+            JOIN users u ON t.user_id = u.id 
+            LEFT JOIN operators o ON t.assigned_to = o.id
+            ORDER BY t.id DESC
+        ''').fetchall()
+    else:
+        tickets = conn.execute('''
+            SELECT t.*, u.last_name, u.first_name, u.username, u.email, u.post, u.phone,
+                   o.last_name as op_last_name, o.first_name as op_first_name
+            FROM tickets t 
+            JOIN users u ON t.user_id = u.id 
+            LEFT JOIN operators o ON t.assigned_to = o.id
+            WHERE t.status = ?
+            ORDER BY t.id DESC
+        ''', (status_filter,)).fetchall()
+
+    conn.close()
+    return render_template('admins/admin_tickets.html', tickets=tickets)
+
+
+
+@app.route('/admin/settings')
+@admin_required
+def admin_settings():
+    return render_template('admins/admin_settings.html')
+
+
+# ===================== УПРАВЛЕНИЕ РОЛЯМИ И ПРАВАМИ =====================
+
+@app.route('/admin/roles')
+@admin_required
+def admin_roles():
+    """Страница управления ролями"""
+    conn = get_db_connection()
+    roles = conn.execute('SELECT * FROM roles ORDER BY id').fetchall()
+    permissions = conn.execute('SELECT * FROM permissions ORDER BY id').fetchall()
+
+    # Получаем разрешения для каждой роли
+    role_perms = {}
+    for role in roles:
+        perms = conn.execute('''
+            SELECT p.id, p.name FROM permissions p
+            JOIN role_permissions rp ON p.id = rp.permission_id
+            WHERE rp.role_id = ?
+        ''', (role['id'],)).fetchall()
+        role_perms[role['id']] = [p['id'] for p in perms]
+
+    conn.close()
+    return render_template('admins/admin_roles.html',
+                           roles=roles,
+                           permissions=permissions,
+                           role_perms=role_perms)
+
+
+@app.route('/admin/roles/update', methods=['POST'])
+@admin_required
+def admin_roles_update():
+    """Обновление прав роли"""
+    data = request.json
+    role_id = data.get('role_id')
+    permission_ids = data.get('permissions', [])
+
+    conn = get_db_connection()
+
+    # Удаляем старые права
+    conn.execute('DELETE FROM role_permissions WHERE role_id = ?', (role_id,))
+
+    # Добавляем новые
+    for perm_id in permission_ids:
+        conn.execute('INSERT INTO role_permissions (role_id, permission_id) VALUES (?, ?)',
+                     (role_id, perm_id))
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({'success': True})
+
+
+@app.route('/admin/users/roles/<int:user_id>')
+@admin_required
+def admin_user_roles(user_id):
+    """Получение ролей пользователя"""
+    conn = get_db_connection()
+    user_roles = conn.execute('''
+        SELECT r.id, r.name FROM roles r
+        JOIN user_roles ur ON r.id = ur.role_id
+        WHERE ur.user_id = ?
+    ''', (user_id,)).fetchall()
+    all_roles = conn.execute('SELECT * FROM roles ORDER BY id').fetchall()
+    conn.close()
+
+    return jsonify({
+        'user_roles': [dict(r) for r in user_roles],
+        'all_roles': [dict(r) for r in all_roles]
+    })
+
+
+@app.route('/admin/users/roles/update', methods=['POST'])
+@admin_required
+def admin_user_roles_update():
+    """Обновление ролей пользователя"""
+    data = request.json
+    user_id = data.get('user_id')
+    role_ids = data.get('roles', [])
+
+    conn = get_db_connection()
+
+    # Удаляем старые роли
+    conn.execute('DELETE FROM user_roles WHERE user_id = ?', (user_id,))
+
+    # Добавляем новые
+    for role_id in role_ids:
+        conn.execute('INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)',
+                     (user_id, role_id))
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({'success': True})
+
+# ===================== НАСТРОЙКИ СИСТЕМЫ =====================
+
+@app.route('/admin/settings/organization', methods=['POST'])
+@admin_required
+def save_org_settings():
+    """Сохранение настроек организации"""
+    data = request.json
+    # Сохраняем в файл или БД
+    import json
+    settings = {
+        'org_name': data.get('org_name', ''),
+        'org_phone': data.get('org_phone', ''),
+        'org_email': data.get('org_email', ''),
+        'org_address': data.get('org_address', '')
+    }
+    with open('databases/settings.json', 'w', encoding='utf-8') as f:
+        json.dump(settings, f, ensure_ascii=False, indent=2)
+    return jsonify({'success': True})
+
+
+@app.route('/admin/settings/organization', methods=['GET'])
+@admin_required
+def get_org_settings():
+    """Получение настроек организации"""
+    import json
+    import os
+    default = {
+        'org_name': 'ВРКБ - Видновская районная клиническая больница',
+        'org_phone': '+7 (901) 796-16-64',
+        'org_email': 'ITGBUZ@mosreg.ru',
+        'org_address': 'г. Видное, Московская область'
+    }
+    if os.path.exists('databases/settings.json'):
+        with open('databases/settings.json', 'r', encoding='utf-8') as f:
+            settings = json.load(f)
+            default.update(settings)
+    return jsonify(default)
+
+
+@app.route('/admin/settings/notifications', methods=['POST'])
+@admin_required
+def save_notification_settings():
+    """Сохранение настроек уведомлений"""
+    data = request.json
+    import json
+    with open('databases/notifications.json', 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    return jsonify({'success': True})
+
+
+@app.route('/admin/settings/notifications', methods=['GET'])
+@admin_required
+def get_notification_settings():
+    """Получение настроек уведомлений"""
+    import json
+    import os
+    default = {
+        'email_enabled': True,
+        'email_host': 'smtp.gmail.com',
+        'email_port': 587,
+        'email_user': '',
+        'email_password': '',
+        'notify_new_ticket': True,
+        'notify_status_change': True,
+        'notify_comment': True
+    }
+    if os.path.exists('databases/notifications.json'):
+        with open('databases/notifications.json', 'r', encoding='utf-8') as f:
+            settings = json.load(f)
+            default.update(settings)
+    return jsonify(default)
+
+
+@app.route('/admin/settings/export_tickets', methods=['GET'])
+@admin_required
+def export_tickets():
+    """Экспорт заявок в Excel"""
+    import pandas as pd
+    from io import BytesIO
+
     conn = get_db_connection()
     tickets = conn.execute('''
-        SELECT t.*, u.last_name, u.first_name, u.username,
+        SELECT t.id, t.subject, t.description, t.status, t.priority, t.created_at, t.category,
+               u.last_name, u.first_name, u.middle_name, u.post, u.department, u.phone,
                o.last_name as op_last_name, o.first_name as op_first_name
         FROM tickets t 
         JOIN users u ON t.user_id = u.id 
@@ -498,13 +966,122 @@ def admin_tickets():
         ORDER BY t.id DESC
     ''').fetchall()
     conn.close()
-    return render_template('admins/admin_tickets.html', tickets=tickets)
+
+    data = []
+    for t in tickets:
+        data.append({
+            'ID': t['id'],
+            'Статус': t['status'],
+            'Приоритет': t['priority'],
+            'Категория': t['category'] if t['category'] else '',
+            'Описание': t['description'],
+            'Создана': t['created_at'],
+            'ФИО пользователя': f"{t['last_name']} {t['first_name']} {t['middle_name'] or ''}",
+            'Должность': t['post'],
+            'Подразделение': t['department'] or '',
+            'Телефон': t['phone'],
+            'Оператор': f"{t['op_last_name'] or ''} {t['op_first_name'] or ''}".strip() or 'Не назначен'
+        })
+
+    df = pd.DataFrame(data)
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name='Заявки', index=False)
+
+    output.seek(0)
+    return send_file(output, as_attachment=True,
+                     download_name=f'tickets_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
-@app.route('/admin/settings')
+@app.route('/admin/backup')
 @admin_required
-def admin_settings():
-    return render_template('admins/admin_settings.html')
+def admin_backup():
+    """Резервное копирование базы данных в папку databases"""
+    import shutil
+    import os
+    from datetime import datetime
+
+    db_path = 'databases/database_helpdesk.db'
+    backup_folder = 'databases/backups/'
+
+    # Создаем папку для бэкапов если её нет
+    if not os.path.exists(backup_folder):
+        os.makedirs(backup_folder)
+
+    backup_name = f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
+    backup_path = os.path.join(backup_folder, backup_name)
+
+    if os.path.exists(db_path):
+        shutil.copy(db_path, backup_path)
+        flash(f'✅ Резервная копия создана: {backup_name}', 'success')
+    else:
+        flash('❌ Файл базы данных не найден', 'danger')
+
+    return redirect(url_for('admin_settings'))
+
+
+@app.route('/admin/backup/list')
+@admin_required
+def admin_backup_list():
+    """Список резервных копий"""
+    import os
+    import glob
+    from datetime import datetime
+
+    backup_folder = 'databases/backups/'
+    backups = []
+
+    if os.path.exists(backup_folder):
+        for file in glob.glob(os.path.join(backup_folder, 'backup_*.db')):
+            stat = os.stat(file)
+            backups.append({
+                'name': os.path.basename(file),
+                'size': f"{stat.st_size / 1024:.1f} KB",
+                'date': datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S'),
+                'path': file
+            })
+
+    backups.sort(key=lambda x: x['date'], reverse=True)
+    return jsonify({'backups': backups})
+
+
+@app.route('/admin/backup/restore/<filename>')
+@admin_required
+def admin_backup_restore(filename):
+    """Восстановление из резервной копии"""
+    import shutil
+    import os
+
+    backup_path = f'databases/backups/{filename}'
+    db_path = 'databases/database_helpdesk.db'
+
+    if os.path.exists(backup_path):
+        # Создаем копию текущей БД перед восстановлением
+        shutil.copy(db_path, f'databases/database_helpdesk_backup_before_restore.db')
+        # Восстанавливаем
+        shutil.copy(backup_path, db_path)
+        flash(f'✅ База данных восстановлена из {filename}', 'success')
+    else:
+        flash('❌ Файл резервной копии не найден', 'danger')
+
+    return redirect(url_for('admin_settings'))
+
+
+@app.route('/admin/backup/delete/<filename>')
+@admin_required
+def admin_backup_delete(filename):
+    """Удаление резервной копии"""
+    import os
+
+    backup_path = f'databases/backups/{filename}'
+    if os.path.exists(backup_path):
+        os.remove(backup_path)
+        flash(f'✅ Резервная копия {filename} удалена', 'success')
+    else:
+        flash('❌ Файл не найден', 'danger')
+
+    return redirect(url_for('admin_settings'))
 
 
 @app.route('/admin/profile')
@@ -895,23 +1472,102 @@ def admin_user_delete(user_id):
     flash('Пользователь и все его заявки удалены', 'success')
     return redirect(url_for('admin_users'))
 
+# ===================== Добавление ОПЕРАТОРОВ (АДМИН) =====================
+@app.route('/admin/operator/add', methods=['GET', 'POST'])
+@admin_required
+def admin_operator_add():
+    """Ручное добавление оператора"""
+    if request.method == 'POST':
+        username = request.form['username'].strip()
+        password = request.form['password']
+        last_name = request.form['last_name'].strip()
+        first_name = request.form['first_name'].strip()
+        middle_name = request.form.get('middle_name', '').strip()
+        post = request.form.get('post', '').strip()
+        phone = request.form.get('phone', '').strip()
+
+        # Валидация
+        errors = []
+
+        if not username:
+            errors.append('Логин обязателен')
+        if len(password) < 6:
+            errors.append('Пароль должен быть не менее 6 символов')
+        if not last_name:
+            errors.append('Фамилия обязательна')
+        if not first_name:
+            errors.append('Имя обязательно')
+
+        # Нормализация телефона (если указан)
+        if phone:
+            phone = re.sub(r'\D', '', phone)
+            if not re.match(r'^[78]\d{10}$', phone):
+                errors.append('Введите корректный номер телефона (10 цифр после 7 или 8)')
+        else:
+            phone = ''
+
+        if errors:
+            for error in errors:
+                flash(error, 'danger')
+            return render_template('admins/admin_operator_add.html')
+
+        hashed_pwd = hashlib.sha256(password.encode()).hexdigest()
+
+        conn = get_db_connection()
+
+        # Проверка уникальности логина
+        existing_username = conn.execute('SELECT id FROM operators WHERE username = ?', (username,)).fetchone()
+        if existing_username:
+            flash('Оператор с таким логином уже существует', 'danger')
+            conn.close()
+            return render_template('admins/admin_operator_add.html')
+
+        # Проверка уникальности телефона (если указан)
+        if phone:
+            existing_phone = conn.execute('SELECT id FROM operators WHERE phone = ?', (phone,)).fetchone()
+            if existing_phone:
+                flash('Оператор с таким телефоном уже существует', 'danger')
+                conn.close()
+                return render_template('admins/admin_operator_add.html')
+
+        try:
+            conn.execute('''
+                INSERT INTO operators (username, password, last_name, first_name, middle_name, post, phone)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (username, hashed_pwd, last_name, first_name, middle_name, post, phone))
+            conn.commit()
+            flash(f'✅ Оператор {username} успешно добавлен!', 'success')
+            return redirect(url_for('admin_operators'))
+        except Exception as e:
+            flash(f'Ошибка при добавлении: {str(e)}', 'danger')
+        finally:
+            conn.close()
+
+    return render_template('admins/admin_operator_add.html')
 
 # ===================== РЕДАКТИРОВАНИЕ ОПЕРАТОРОВ (АДМИН) =====================
 
 @app.route('/admin/operator/edit/<int:operator_id>', methods=['GET', 'POST'])
 @admin_required
 def admin_operator_edit(operator_id):
+    """Редактирование оператора"""
     conn = get_db_connection()
 
     if request.method == 'POST':
         last_name = request.form['last_name']
         first_name = request.form['first_name']
         middle_name = request.form.get('middle_name', '')
-        post = request.form['post']
-        phone = request.form['phone']
+        post = request.form.get('post', '')
+        phone = request.form.get('phone', '')
 
         # Валидация телефона
-        phone = re.sub(r'\D', '', phone)
+        if phone:
+            phone = re.sub(r'\D', '', phone)
+            if not re.match(r'^[78]\d{10}$', phone):
+                flash('Введите корректный номер телефона', 'danger')
+                return redirect(url_for('admin_operator_edit', operator_id=operator_id))
+        else:
+            phone = ''
 
         conn.execute('''
             UPDATE operators 
@@ -954,23 +1610,121 @@ def assign_operator(ticket_id):
 
     conn = get_db_connection()
 
-    if assigned_to and assigned_to != '':
-        # При назначении обновляем статус и время
-        conn.execute('''
-            UPDATE tickets 
-            SET assigned_to = ?, status = 'in_progress', updated_at = ?
-            WHERE id = ?
-        ''', (int(assigned_to), current_time, ticket_id))
-        flash('Оператор назначен на заявку', 'success')
-    else:
-        conn.execute('UPDATE tickets SET assigned_to = NULL, status = "new", updated_at = NULL WHERE id = ?',
-                     (ticket_id,))
-        flash('Назначение отменено', 'info')
+    try:
+        # Получаем информацию о заявке
+        ticket = conn.execute('SELECT user_id FROM tickets WHERE id = ?', (ticket_id,)).fetchone()
 
-    conn.commit()
-    conn.close()
+        if assigned_to and assigned_to != '':
+            conn.execute('''
+                UPDATE tickets 
+                SET assigned_to = ?, status = 'in_progress', updated_at = ?
+                WHERE id = ?
+            ''', (int(assigned_to), current_time, ticket_id))
+
+            # Отправляем уведомления ПОСЛЕ закрытия соединения
+            conn.commit()
+            conn.close()
+
+            # Уведомление оператору
+            send_notification(
+                'operator',
+                int(assigned_to),
+                f'📋 Заявка #{ticket_id} назначена вам',
+                f'Вам назначена заявка #{ticket_id}',
+                'assignment',
+                f'/operator/ticket/{ticket_id}'
+            )
+
+            # Уведомление пользователю
+            if ticket:
+                send_notification(
+                    'user',
+                    ticket['user_id'],
+                    f'👨‍💼 Заявка #{ticket_id} взята в работу',
+                    f'IT-специалист назначен на вашу заявку',
+                    'status_change',
+                    f'/ticket/{ticket_id}'
+                )
+
+            flash('IT-специалист назначен на заявку', 'success')
+        else:
+            conn.execute('UPDATE tickets SET assigned_to = NULL, status = "new", updated_at = NULL WHERE id = ?',
+                         (ticket_id,))
+            conn.commit()
+            conn.close()
+            flash('Назначение отменено', 'info')
+
+    except Exception as e:
+        conn.close()
+        flash(f'Ошибка: {e}', 'danger')
 
     return redirect(url_for('operator_dashboard'))
+
+
+# ===================== СБРОС ПАРОЛЯ =====================
+
+@app.route('/admin/user/reset_password/<int:user_id>', methods=['GET', 'POST'])
+@admin_required
+def admin_user_reset_password(user_id):
+    """Сброс пароля пользователя администратором"""
+    conn = get_db_connection()
+    user = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
+
+    if not user:
+        flash('Пользователь не найден', 'danger')
+        conn.close()
+        return redirect(url_for('admin_users'))
+
+    if request.method == 'POST':
+        new_password = request.form.get('new_password', '')
+
+        if len(new_password) < 6:
+            flash('Пароль должен быть не менее 6 символов', 'danger')
+            conn.close()
+            return render_template('admins/admin_user_reset_password.html', user=user)
+
+        hashed_pwd = hashlib.sha256(new_password.encode()).hexdigest()
+        conn.execute('UPDATE users SET password = ? WHERE id = ?', (hashed_pwd, user_id))
+        conn.commit()
+
+        flash(f'✅ Пароль для пользователя {user["username"]} успешно изменен!', 'success')
+        conn.close()
+        return redirect(url_for('admin_users'))
+
+    conn.close()
+    return render_template('admins/admin_user_reset_password.html', user=user)
+
+
+@app.route('/admin/operator/reset_password/<int:operator_id>', methods=['GET', 'POST'])
+@admin_required
+def admin_operator_reset_password(operator_id):
+    """Сброс пароля оператора администратором"""
+    conn = get_db_connection()
+    operator = conn.execute('SELECT * FROM operators WHERE id = ?', (operator_id,)).fetchone()
+
+    if not operator:
+        flash('Оператор не найден', 'danger')
+        conn.close()
+        return redirect(url_for('admin_operators'))
+
+    if request.method == 'POST':
+        new_password = request.form.get('new_password', '')
+
+        if len(new_password) < 6:
+            flash('Пароль должен быть не менее 6 символов', 'danger')
+            conn.close()
+            return render_template('admins/admin_operator_reset_password.html', operator=operator)
+
+        hashed_pwd = hashlib.sha256(new_password.encode()).hexdigest()
+        conn.execute('UPDATE operators SET password = ? WHERE id = ?', (hashed_pwd, operator_id))
+        conn.commit()
+
+        flash(f'✅ Пароль для оператора {operator["username"]} успешно изменен!', 'success')
+        conn.close()
+        return redirect(url_for('admin_operators'))
+
+    conn.close()
+    return render_template('admins/admin_operator_reset_password.html', operator=operator)
 
 
 # ===================== КОММЕНТАРИИ =====================
@@ -987,8 +1741,8 @@ def add_comment(ticket_id):
 
     conn = get_db_connection()
 
-    # Проверяем, что заявка принадлежит пользователю
-    ticket = conn.execute('SELECT user_id FROM tickets WHERE id = ?', (ticket_id,)).fetchone()
+    # Проверяем, что заявка принадлежит пользователю и получаем назначенного оператора
+    ticket = conn.execute('SELECT user_id, assigned_to FROM tickets WHERE id = ?', (ticket_id,)).fetchone()
     if not ticket or ticket['user_id'] != session['user_id']:
         flash('Доступ запрещен', 'danger')
         conn.close()
@@ -998,8 +1752,20 @@ def add_comment(ticket_id):
         INSERT INTO comments (ticket_id, user_id, comment, created_at)
         VALUES (?, ?, ?, ?)
     ''', (ticket_id, session['user_id'], comment, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-
     conn.commit()
+
+    # ===== УВЕДОМЛЕНИЕ ОПЕРАТОРУ =====
+    if ticket['assigned_to']:
+        send_notification(
+            'operator',
+            ticket['assigned_to'],
+            f'💬 Новый комментарий в заявке #{ticket_id}',
+            f'Пользователь оставил комментарий: {comment[:50]}...',
+            'comment',
+            f'/operator/ticket/{ticket_id}'
+        )
+    # ================================
+
     conn.close()
 
     flash('Комментарий добавлен', 'success')
@@ -1018,12 +1784,27 @@ def operator_add_comment(ticket_id):
 
     conn = get_db_connection()
 
+    # Получаем ID пользователя, которому принадлежит заявка
+    ticket = conn.execute('SELECT user_id FROM tickets WHERE id = ?', (ticket_id,)).fetchone()
+
     conn.execute('''
         INSERT INTO comments (ticket_id, operator_id, comment, created_at)
         VALUES (?, ?, ?, ?)
     ''', (ticket_id, session['operator_id'], comment, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-
     conn.commit()
+
+    # ===== УВЕДОМЛЕНИЕ ПОЛЬЗОВАТЕЛЮ =====
+    if ticket:
+        send_notification(
+            'user',
+            ticket['user_id'],
+            f'💬 Ответ в заявке #{ticket_id}',
+            f'IT-специалист ответил на вашу заявку: {comment[:50]}...',
+            'comment',
+            f'/ticket/{ticket_id}'
+        )
+    # ===================================
+
     conn.close()
 
     flash('Комментарий добавлен', 'success')
@@ -1063,6 +1844,10 @@ def admin_ticket_edit(ticket_id):
         operator_answer = request.form.get('operator_answer', '')
         assigned_to = request.form.get('assigned_to')
 
+        # Получаем информацию о заявке до обновления
+        ticket_info = conn.execute('SELECT user_id, status FROM tickets WHERE id = ?', (ticket_id,)).fetchone()
+        old_status = ticket_info['status'] if ticket_info else None
+
         if assigned_to and assigned_to != '':
             assigned_to = int(assigned_to)
         else:
@@ -1075,6 +1860,25 @@ def admin_ticket_edit(ticket_id):
             SET status = ?, priority = ?, operator_answer = ?, assigned_to = ?, updated_at = ?
             WHERE id = ?
         ''', (status, priority, operator_answer, assigned_to, updated_at, ticket_id))
+
+        # Уведомление пользователю при смене статуса (если статус изменился)
+        if old_status != status:
+            status_messages = {
+                'new': '🆕 Новая',
+                'in_progress': '⚙️ В работе',
+                'resolved': '✅ Решена',
+                'closed': '📦 Закрыта'
+            }
+            status_text = status_messages.get(status, status)
+            send_notification(
+                'user',
+                ticket_info['user_id'],
+                f'🔄 Статус заявки #{ticket_id} изменен',
+                f'Статус вашей заявки изменен на "{status_text}"',
+                'status_change',
+                f'/ticket/{ticket_id}'
+            )
+
         conn.commit()
         flash('Заявка успешно обновлена', 'success')
         conn.close()
@@ -1170,7 +1974,27 @@ def create_ticket():
                           category, problem_type, location, office, assistant_id,
                           printer_manufacturer, printer_model, printer_problem))
             conn.commit()
+            conn.commit()
             ticket_id = conn.execute('SELECT last_insert_rowid()').fetchone()[0]
+
+            # ===== УВЕДОМЛЕНИЯ О НОВОЙ ЗАЯВКЕ =====
+            # Отправляем уведомление всем операторам
+            send_notification_to_all_operators(
+                f'🆕 Новая заявка #{ticket_id}',
+                f'Пользователь {session["full_name"]} создал новую заявку',
+                'new_ticket',
+                f'/operator/ticket/{ticket_id}'
+            )
+
+            # Отправляем уведомление всем администраторам
+            send_notification_to_all_admins(
+                f'🆕 Новая заявка #{ticket_id}',
+                f'Пользователь {session["full_name"]} создал новую заявку',
+                'new_ticket',
+                f'/admin/ticket/edit/{ticket_id}'
+            )
+            # ===================================
+
             flash(f'Заявка #{ticket_id} успешно создана!', 'success')
             return redirect(url_for('ticket_status', ticket_id=ticket_id))
         except Exception as e:
@@ -1430,6 +2254,7 @@ def get_templates(category):
 
     return {'templates': [dict(t) for t in templates]}
 
+
 @app.route('/operator/ticket/<int:ticket_id>', methods=['GET', 'POST'])
 @operator_required
 def operator_ticket(ticket_id):
@@ -1438,11 +2263,16 @@ def operator_ticket(ticket_id):
     if request.method == 'POST':
         status = request.form['status']
         priority = request.form['priority']
-        # answer больше не обязательное поле
-        answer = request.form.get('answer', '')  # Используем .get() с значением по умолчанию
+        answer = request.form.get('answer', '')
         updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        if status == 'in_progress' and not conn.execute('SELECT assigned_to FROM tickets WHERE id = ?', (ticket_id,)).fetchone()['assigned_to']:
+        # Получаем информацию о заявке до обновления
+        ticket_info = conn.execute('SELECT user_id, assigned_to, status FROM tickets WHERE id = ?',
+                                   (ticket_id,)).fetchone()
+        old_status = ticket_info['status'] if ticket_info else None
+
+        if status == 'in_progress' and not \
+        conn.execute('SELECT assigned_to FROM tickets WHERE id = ?', (ticket_id,)).fetchone()['assigned_to']:
             conn.execute('UPDATE tickets SET assigned_to = ?, updated_at = ? WHERE id = ?',
                          (session['operator_id'], updated_at, ticket_id))
 
@@ -1451,14 +2281,55 @@ def operator_ticket(ticket_id):
             conn.execute(
                 'UPDATE tickets SET status = ?, operator_answer = ?, priority = ?, updated_at = ?, completed_at = ? WHERE id = ?',
                 (status, answer, priority, updated_at, completed_at, ticket_id))
+
+            # ===== УВЕДОМЛЕНИЕ О РЕШЕНИИ ЗАЯВКИ =====
+            send_notification(
+                'user',
+                ticket_info['user_id'],
+                f'✅ Заявка #{ticket_id} решена',
+                f'Ваша заявка # {ticket_id} решена. Ответ: {answer[:50]}...',
+                'success',
+                f'/ticket/{ticket_id}'
+            )
+            # ======================================
+
         elif status == 'closed':
             closed_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             conn.execute(
                 'UPDATE tickets SET status = ?, operator_answer = ?, priority = ?, updated_at = ?, completed_at = ? WHERE id = ?',
                 (status, answer, priority, updated_at, closed_at, ticket_id))
+
+            # ===== УВЕДОМЛЕНИЕ О ЗАКРЫТИИ ЗАЯВКИ =====
+            send_notification(
+                'user',
+                ticket_info['user_id'],
+                f'📦 Заявка #{ticket_id} закрыта',
+                f'Ваша заявка # {ticket_id} закрыта. Если остались вопросы - создайте новую.',
+                'info',
+                f'/ticket/{ticket_id}'
+            )
+            # ======================================
+
         else:
-            conn.execute('UPDATE tickets SET status = ?, operator_answer = ?, priority = ?, updated_at = ? WHERE id = ?',
-                         (status, answer, priority, updated_at, ticket_id))
+            conn.execute(
+                'UPDATE tickets SET status = ?, operator_answer = ?, priority = ?, updated_at = ? WHERE id = ?',
+                (status, answer, priority, updated_at, ticket_id))
+
+            # Уведомление при смене статуса (не resolved и не closed)
+            if old_status != status:
+                status_messages = {
+                    'new': '🆕 Новая',
+                    'in_progress': '⚙️ В работе'
+                }
+                status_text = status_messages.get(status, status)
+                send_notification(
+                    'user',
+                    ticket_info['user_id'],
+                    f'🔄 Статус заявки #{ticket_id} изменен',
+                    f'Статус вашей заявки изменен на "{status_text}"',
+                    'status_change',
+                    f'/ticket/{ticket_id}'
+                )
 
         conn.commit()
         flash('Заявка обновлена', 'success')
@@ -1612,6 +2483,192 @@ def operator_logout():
     session.pop('operator_name', None)
     flash('Вы вышли из панели оператора', 'info')
     return redirect(url_for('operator_login'))
+
+
+# ===================== УВЕДОМЛЕНИЯ =====================
+
+def send_notification(recipient_type, recipient_id, title, message, notification_type='info', link=None):
+    """Отправка уведомления"""
+    conn = get_db_connection()
+
+    try:
+        if recipient_type == 'user':
+            conn.execute('''
+                INSERT INTO notifications (user_id, title, message, type, link, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (recipient_id, title, message, notification_type, link, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        elif recipient_type == 'operator':
+            conn.execute('''
+                INSERT INTO notifications (operator_id, title, message, type, link, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (recipient_id, title, message, notification_type, link, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        elif recipient_type == 'admin':
+            conn.execute('''
+                INSERT INTO notifications (admin_id, title, message, type, link, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (recipient_id, title, message, notification_type, link, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+
+        conn.commit()
+    except Exception as e:
+        print(f"Ошибка в send_notification: {e}")
+    finally:
+        conn.close()
+
+
+def send_notification_to_all_operators(title, message, notification_type='info', link=None):
+    """Отправка уведомления всем операторам"""
+    conn = get_db_connection()
+    operators = conn.execute('SELECT id FROM operators').fetchall()
+    conn.close()  # Важно! Закрываем соединение
+
+    for op in operators:
+        send_notification('operator', op['id'], title, message, notification_type, link)
+
+
+def send_notification_to_all_admins(title, message, notification_type='info', link=None):
+    """Отправка уведомления всем администраторам"""
+    conn = get_db_connection()
+    admins = conn.execute('SELECT id FROM admins').fetchall()
+    conn.close()  # Важно! Закрываем соединение
+
+    for admin in admins:
+        send_notification('admin', admin['id'], title, message, notification_type, link)
+
+
+@app.route('/notifications')
+@login_required
+def get_notifications():
+    """Получение уведомлений пользователя (AJAX)"""
+    try:
+        conn = get_db_connection()
+
+        # Проверяем существование таблицы
+        conn.execute('SELECT 1 FROM notifications LIMIT 1')
+
+        # Уведомления для пользователя
+        notifications = conn.execute('''
+            SELECT * FROM notifications 
+            WHERE user_id = ? 
+            ORDER BY created_at DESC LIMIT 50
+        ''', (session['user_id'],)).fetchall()
+
+        unread_count = conn.execute('''
+            SELECT COUNT(*) FROM notifications 
+            WHERE user_id = ? AND is_read = 0
+        ''', (session['user_id'],)).fetchone()[0]
+
+        conn.close()
+
+        return jsonify({
+            'notifications': [dict(n) for n in notifications],
+            'unread_count': unread_count
+        })
+    except Exception as e:
+        print(f"Ошибка в get_notifications: {e}")
+        return jsonify({
+            'notifications': [],
+            'unread_count': 0,
+            'error': str(e)
+        })
+
+
+@app.route('/operator/notifications')
+@operator_required
+def operator_get_notifications():
+    conn = get_db_connection()
+    notifications = conn.execute('''
+        SELECT * FROM notifications 
+        WHERE operator_id = ? 
+        ORDER BY created_at DESC LIMIT 50
+    ''', (session['operator_id'],)).fetchall()
+    unread_count = conn.execute('''
+        SELECT COUNT(*) FROM notifications 
+        WHERE operator_id = ? AND is_read = 0
+    ''', (session['operator_id'],)).fetchone()[0]
+    conn.close()
+    return jsonify({
+        'notifications': [dict(n) for n in notifications],
+        'unread_count': unread_count
+    })
+
+
+@app.route('/debug/create_notification')
+def debug_create_notification():
+    """Создание тестового уведомления"""
+    import sqlite3
+    from datetime import datetime
+
+    if not session.get('user_id') and not session.get('operator_logged_in'):
+        return 'Не авторизован'
+
+    conn = get_db_connection()
+
+    # Для пользователя
+    if session.get('user_id'):
+        conn.execute('''
+            INSERT INTO notifications (user_id, title, message, type, link, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (session['user_id'], '🔔 Тестовое уведомление', 'Это проверка работы уведомлений!', 'info', '/dashboard',
+              datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+
+    # Для оператора
+    if session.get('operator_logged_in'):
+        conn.execute('''
+            INSERT INTO notifications (operator_id, title, message, type, link, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (session['operator_id'], '🔔 Тестовое уведомление', 'Это проверка работы уведомлений!', 'info',
+              '/operator/dashboard', datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+
+    conn.commit()
+    conn.close()
+
+    return '✅ Тестовое уведомление создано! Обновите страницу и нажмите на 🔔'
+
+@app.route('/admin/notifications')
+@admin_required
+def admin_get_notifications():
+    """Получение уведомлений администратора (AJAX)"""
+    conn = get_db_connection()
+
+    notifications = conn.execute('''
+        SELECT * FROM notifications 
+        WHERE admin_id = ? 
+        ORDER BY created_at DESC LIMIT 50
+    ''', (session['admin_id'],)).fetchall()
+
+    unread_count = conn.execute('''
+        SELECT COUNT(*) FROM notifications 
+        WHERE admin_id = ? AND is_read = 0
+    ''', (session['admin_id'],)).fetchone()[0]
+
+    conn.close()
+
+    return jsonify({
+        'notifications': [dict(n) for n in notifications],
+        'unread_count': unread_count
+    })
+
+
+@app.route('/notifications/mark_read/<int:notif_id>', methods=['POST'])
+@login_required
+def mark_notification_read(notif_id):
+    """Отметить уведомление как прочитанное"""
+    conn = get_db_connection()
+    conn.execute('UPDATE notifications SET is_read = 1 WHERE id = ?', (notif_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+
+@app.route('/notifications/mark_all_read', methods=['POST'])
+@login_required
+def mark_all_notifications_read():
+    """Отметить все уведомления как прочитанные"""
+    conn = get_db_connection()
+    conn.execute('UPDATE notifications SET is_read = 1 WHERE user_id = ?', (session['user_id'],))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
 
 
 if __name__ == '__main__':

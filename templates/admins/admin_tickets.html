@@ -8,6 +8,15 @@
     <p class="text-muted" style="margin: 0;">Полный список всех заявок в системе</p>
 </div>
 
+<!-- Фильтры по статусу -->
+<div class="filter-buttons" style="margin-bottom: 25px; display: flex; gap: 10px; flex-wrap: wrap;">
+    <a href="?status=all" class="btn btn-outline {% if request.args.get('status', 'all') == 'all' %}active{% endif %}">📋 Все</a>
+    <a href="?status=new" class="btn btn-outline {% if request.args.get('status') == 'new' %}active{% endif %}">🆕 Новые</a>
+    <a href="?status=in_progress" class="btn btn-outline {% if request.args.get('status') == 'in_progress' %}active{% endif %}">⚙️ В работе</a>
+    <a href="?status=resolved" class="btn btn-outline {% if request.args.get('status') == 'resolved' %}active{% endif %}">✅ Решенные</a>
+    <a href="?status=closed" class="btn btn-outline {% if request.args.get('status') == 'closed' %}active{% endif %}">📦 Закрытые</a>
+</div>
+
 <div class="table-responsive">
     <table class="admin-table tickets-table">
         <thead>
@@ -15,6 +24,7 @@
             <th>ID</th>
             <th>Пользователь</th>
             <th>Категория</th>
+            <th>Приоритет</th>
             <th>Описание</th>
             <th>Статус</th>
             <th>Оператор</th>
@@ -31,24 +41,27 @@
                 <br><small class="text-muted">@{{ ticket.username }}</small>
             </td>
             <td data-label="Категория">
-                {% if ticket.category == 'IT' %}
-                💻 IT
-                {% elif ticket.category == 'MED' %}
-                🏥 Медицина
-                {% else %}
-                {{ ticket.category }}
-                {% endif %}
+                {% if ticket.category == 'IT' %}💻 IT
+                {% elif ticket.category == 'MED' %}🏥 Медицина
+                {% else %}{{ ticket.category }}{% endif %}
+            </td>
+            <td data-label="Приоритет">
+                <span class="priority-badge priority-{{ ticket.priority }}">
+                    {% if ticket.priority == 'high' %}🔴 Высокий
+                    {% elif ticket.priority == 'medium' %}🟡 Средний
+                    {% else %}🟢 Низкий{% endif %}
+                </span>
             </td>
             <td data-label="Описание" class="ticket-description">
                 {{ ticket.description[:80] }}{% if ticket.description|length > 80 %}...{% endif %}
             </td>
             <td data-label="Статус">
-                    <span class="status-badge status-{{ ticket.status }}">
-                        {% if ticket.status == 'new' %}🆕 Новая
-                        {% elif ticket.status == 'in_progress' %}⚙️ В работе
-                        {% elif ticket.status == 'resolved' %}✅ Решена
-                        {% else %}📦 Закрыта{% endif %}
-                    </span>
+                <span class="status-badge status-{{ ticket.status }}">
+                    {% if ticket.status == 'new' %}🆕 Новая
+                    {% elif ticket.status == 'in_progress' %}⚙️ В работе
+                    {% elif ticket.status == 'resolved' %}✅ Решена
+                    {% else %}📦 Закрыта{% endif %}
+                </span>
             </td>
             <td data-label="Оператор">
                 {% if ticket.op_last_name %}
@@ -67,7 +80,7 @@
         </tr>
         {% else %}
         <tr class="empty-row">
-            <td colspan="8" style="text-align: center; padding: 40px;">
+            <td colspan="9" style="text-align: center; padding: 40px;">
                 <div style="font-size: 48px;">📭</div>
                 <p>Заявок не найдено</p>
             </td>
@@ -78,7 +91,35 @@
 </div>
 
 <style>
-    /* Стили для таблицы заявок */
+    .active {
+        background: linear-gradient(135deg, var(--accent-color), #764ba2);
+        color: white;
+        border-color: transparent;
+    }
+
+    .priority-badge {
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 600;
+        display: inline-block;
+    }
+
+    .priority-high {
+        background: rgba(239, 68, 68, 0.15);
+        color: #ef4444;
+    }
+
+    .priority-medium {
+        background: rgba(245, 158, 11, 0.15);
+        color: #f59e0b;
+    }
+
+    .priority-low {
+        background: rgba(16, 185, 129, 0.15);
+        color: #10b981;
+    }
+
     .admin-table {
         width: 100%;
         border-collapse: collapse;
@@ -108,7 +149,6 @@
         font-size: 14px;
     }
 
-    /* Строки таблицы */
     .ticket-row {
         transition: all 0.2s ease;
     }
@@ -117,27 +157,23 @@
         background: rgba(102, 126, 234, 0.05);
     }
 
-    /* ID заявки */
     .ticket-id {
         font-weight: 600;
         color: var(--accent-color);
     }
 
-    /* Описание заявки */
     .ticket-description {
         max-width: 250px;
         word-break: break-word;
         line-height: 1.4;
     }
 
-    /* Дата */
     .ticket-date {
         font-size: 12px;
         color: var(--text-muted);
         white-space: nowrap;
     }
 
-    /* Ячейка с действиями */
     .actions-cell {
         white-space: nowrap;
     }
@@ -162,13 +198,11 @@
         transform: translateY(-1px);
     }
 
-    /* Пустая строка */
     .empty-row td {
         text-align: center;
         padding: 40px;
     }
 
-    /* Адаптивность для мобильных */
     @media (max-width: 768px) {
         .admin-table thead {
             display: none;

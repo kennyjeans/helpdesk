@@ -60,11 +60,28 @@
             </div>
         </div>
 
-        <!-- ПРАВАЯ ЧАСТЬ: Быстрые ссылки и тема -->
+        <!-- ПРАВАЯ ЧАСТЬ: Быстрые ссылки, уведомления и тема -->
         <div class="nav-right">
             {% if session.user_id %}
             <a href="{{ url_for('dashboard') }}" class="nav-link">📋 Мои заявки</a>
             <a href="{{ url_for('create_ticket') }}" class="nav-link">➕ Новая заявка</a>
+
+            <!-- Уведомления -->
+            <div class="notifications-wrapper">
+                <button class="notifications-btn" onclick="toggleNotifications()">
+                    🔔
+                    <span class="notifications-badge" id="notifBadge" style="display: none;">0</span>
+                </button>
+                <div class="notifications-dropdown" id="notificationsDropdown">
+                    <div class="notifications-header">
+                        <span>Уведомления</span>
+                        <button class="mark-all-read" onclick="markAllRead()">Прочитать все</button>
+                    </div>
+                    <div class="notifications-list" id="notificationsList">
+                        <div class="loading-notif">Загрузка...</div>
+                    </div>
+                </div>
+            </div>
             {% else %}
             <a href="{{ url_for('index') }}" class="nav-link">🏠 Главная</a>
             {% endif %}
@@ -86,6 +103,268 @@
 
     {% block content %}{% endblock %}
 </div>
+
+<style>
+    /* ========== УВЕДОМЛЕНИЯ ========== */
+    .notifications-wrapper {
+        position: relative;
+    }
+
+    .notifications-btn {
+        background: rgba(102, 126, 234, 0.15);
+        border: 1px solid rgba(102, 126, 234, 0.3);
+        border-radius: 30px;
+        width: 40px;
+        height: 40px;
+        cursor: pointer;
+        font-size: 18px;
+        position: relative;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .notifications-btn:hover {
+        background: rgba(102, 126, 234, 0.25);
+        transform: scale(1.05);
+    }
+
+    .notifications-badge {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        color: white;
+        font-size: 10px;
+        font-weight: bold;
+        padding: 2px 6px;
+        border-radius: 20px;
+        min-width: 18px;
+        text-align: center;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+        100% { transform: scale(1); }
+    }
+
+    .notifications-dropdown {
+        position: absolute;
+        top: 100%;
+        right: 0;
+        margin-top: 10px;
+        background: var(--glass-bg);
+        backdrop-filter: blur(20px);
+        border-radius: 20px;
+        border: 1px solid var(--glass-border);
+        box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        width: 380px;
+        z-index: 1000;
+        overflow: hidden;
+        animation: slideDown 0.25s ease;
+        display: none;
+    }
+
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-15px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .notifications-dropdown.show {
+        display: block;
+    }
+
+    .notifications-header {
+        padding: 15px 18px;
+        border-bottom: 1px solid var(--glass-border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: rgba(102, 126, 234, 0.05);
+    }
+
+    .notifications-header span {
+        font-weight: 600;
+        font-size: 15px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .notifications-header span::before {
+        content: "🔔";
+        font-size: 16px;
+    }
+
+    .mark-all-read {
+        background: rgba(102, 126, 234, 0.15);
+        border: none;
+        color: var(--accent-color);
+        cursor: pointer;
+        font-size: 12px;
+        padding: 5px 12px;
+        border-radius: 30px;
+        transition: all 0.2s;
+    }
+
+    .mark-all-read:hover {
+        background: rgba(102, 126, 234, 0.25);
+        transform: scale(1.02);
+    }
+
+    .notifications-list {
+        max-height: 450px;
+        overflow-y: auto;
+    }
+
+    .notifications-list::-webkit-scrollbar {
+        width: 5px;
+    }
+
+    .notifications-list::-webkit-scrollbar-track {
+        background: rgba(102, 126, 234, 0.1);
+        border-radius: 10px;
+    }
+
+    .notifications-list::-webkit-scrollbar-thumb {
+        background: rgba(102, 126, 234, 0.4);
+        border-radius: 10px;
+    }
+
+    .notification-item {
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--glass-border);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-decoration: none;
+        display: block;
+        position: relative;
+    }
+
+    .notification-item:hover {
+        background: rgba(102, 126, 234, 0.08);
+        transform: translateX(3px);
+    }
+
+    .notification-item.unread {
+        background: linear-gradient(90deg, rgba(102, 126, 234, 0.12), rgba(102, 126, 234, 0.05));
+        border-left: 3px solid var(--accent-color);
+    }
+
+    .notification-item.unread::before {
+        content: "●";
+        position: absolute;
+        right: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--accent-color);
+        font-size: 12px;
+        animation: blink 1s infinite;
+    }
+
+    @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    .notification-title {
+        font-weight: 600;
+        font-size: 14px;
+        margin-bottom: 5px;
+        color: var(--text-primary);
+        padding-right: 20px;
+    }
+
+    .notification-message {
+        font-size: 12px;
+        color: var(--text-secondary);
+        margin-bottom: 6px;
+        line-height: 1.4;
+    }
+
+    .notification-time {
+        font-size: 10px;
+        color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .notification-time::before {
+        content: "🕐";
+        font-size: 10px;
+    }
+
+    .empty-notifications {
+        text-align: center;
+        padding: 50px 30px;
+        color: var(--text-muted);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .empty-notifications::before {
+        content: "📭";
+        font-size: 48px;
+        opacity: 0.5;
+    }
+
+    .loading-notif {
+        text-align: center;
+        padding: 40px;
+        color: var(--text-muted);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .loading-notif::after {
+        content: "";
+        width: 20px;
+        height: 20px;
+        border: 2px solid var(--accent-color);
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 768px) {
+        .notifications-dropdown {
+            width: calc(100vw - 20px);
+            right: -60px;
+            min-width: 300px;
+        }
+
+        .notification-item {
+            padding: 12px 15px;
+        }
+
+        .notification-title {
+            font-size: 13px;
+        }
+
+        .notification-message {
+            font-size: 11px;
+        }
+    }
+</style>
 
 <script>
     // Переключение темы
@@ -128,6 +407,175 @@
 
         if (dropdown && profileBtn && !profileBtn.contains(event.target) && !dropdown.contains(event.target)) {
             dropdown.classList.remove('show');
+        }
+    });
+
+    // ============= УВЕДОМЛЕНИЯ =============
+    let notifUpdateInterval;
+
+    function getNotificationIcon(type) {
+        const icons = {
+            'new_ticket': '🆕',
+            'assignment': '📋',
+            'comment': '💬',
+            'status_change': '🔄',
+            'info': 'ℹ️',
+            'warning': '⚠️',
+            'success': '✅'
+        };
+        return icons[type] || '🔔';
+    }
+
+    function formatNotificationTime(dateStr) {
+        if (!dateStr) return '';
+        try {
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMs / 3600000);
+            const diffDays = Math.floor(diffMs / 86400000);
+
+            if (diffMins < 1) return 'только что';
+            if (diffMins < 60) return `${diffMins} мин. назад`;
+            if (diffHours < 24) return `${diffHours} ч. назад`;
+            if (diffDays < 7) return `${diffDays} дн. назад`;
+            return date.toLocaleDateString('ru-RU', {day: 'numeric', month: 'short'});
+        } catch (e) {
+            return dateStr;
+        }
+    }
+
+    function loadNotifications() {
+        fetch('/notifications')
+            .then(response => response.json())
+            .then(data => {
+                const badge = document.getElementById('notifBadge');
+                const list = document.getElementById('notificationsList');
+
+                if (!list) return;
+
+                if (data.unread_count > 0) {
+                    badge.style.display = 'inline-flex';
+                    badge.textContent = data.unread_count > 99 ? '99+' : data.unread_count;
+                } else {
+                    badge.style.display = 'none';
+                }
+
+                if (!data.notifications || data.notifications.length === 0) {
+                    list.innerHTML = '<div class="empty-notifications">Нет уведомлений</div>';
+                    return;
+                }
+
+                let html = '';
+                for (let notif of data.notifications) {
+                    const unreadClass = notif.is_read ? '' : 'unread';
+                    const icon = getNotificationIcon(notif.type);
+                    const time = formatNotificationTime(notif.created_at);
+                    const link = notif.link || '#';
+
+                    html += `
+                        <div class="notification-item ${unreadClass}" data-type="${notif.type}" onclick="markRead(${notif.id}, '${link}')">
+                            <div class="notification-title">${icon} ${escapeHtml(notif.title)}</div>
+                            <div class="notification-message">${escapeHtml(notif.message)}</div>
+                            <div class="notification-time">${time}</div>
+                        </div>
+                    `;
+                }
+                list.innerHTML = html;
+            })
+            .catch(error => {
+                console.error('Ошибка загрузки уведомлений:', error);
+                const list = document.getElementById('notificationsList');
+                if (list) {
+                    list.innerHTML = '<div class="empty-notifications">⚠️ Ошибка загрузки</div>';
+                }
+            });
+    }
+
+    function toggleNotifications() {
+        const dropdown = document.getElementById('notificationsDropdown');
+        if (dropdown) {
+            dropdown.classList.toggle('show');
+            if (dropdown.classList.contains('show')) {
+                loadNotifications();
+            }
+        }
+    }
+
+    function markRead(notifId, link) {
+        fetch(`/notifications/mark_read/${notifId}`, {method: 'POST'})
+            .then(() => {
+                if (link && link !== '#') {
+                    window.location.href = link;
+                } else {
+                    loadNotifications();
+                    const badge = document.getElementById('notifBadge');
+                    if (badge) badge.style.display = 'none';
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка отметки прочтения:', error);
+            });
+    }
+
+    function markAllRead() {
+        fetch('/notifications/mark_all_read', {method: 'POST'})
+            .then(() => {
+                loadNotifications();
+                const badge = document.getElementById('notifBadge');
+                if (badge) badge.style.display = 'none';
+            })
+            .catch(error => {
+                console.error('Ошибка отметки всех прочитанными:', error);
+            });
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Закрыть меню уведомлений при клике вне
+    document.addEventListener('click', function(event) {
+        const dropdown = document.getElementById('notificationsDropdown');
+        const btn = document.querySelector('.notifications-btn');
+        if (dropdown && btn && !btn.contains(event.target) && !dropdown.contains(event.target)) {
+            dropdown.classList.remove('show');
+        }
+    });
+
+    // Автообновление уведомлений каждые 30 секунд
+    if (notifUpdateInterval) clearInterval(notifUpdateInterval);
+
+    notifUpdateInterval = setInterval(() => {
+        const dropdown = document.getElementById('notificationsDropdown');
+        if (dropdown && dropdown.classList.contains('show')) {
+            loadNotifications();
+        } else {
+            fetch('/notifications')
+                .then(r => r.json())
+                .then(data => {
+                    const badge = document.getElementById('notifBadge');
+                    if (badge) {
+                        if (data.unread_count > 0) {
+                            badge.style.display = 'inline-flex';
+                            badge.textContent = data.unread_count > 99 ? '99+' : data.unread_count;
+                        } else {
+                            badge.style.display = 'none';
+                        }
+                    }
+                })
+                .catch(e => console.error('Ошибка обновления счетчика:', e));
+        }
+    }, 30000);
+
+    // Загружаем при загрузке страницы
+    document.addEventListener('DOMContentLoaded', function() {
+        if (document.getElementById('notificationsList')) {
+            loadNotifications();
         }
     });
 </script>

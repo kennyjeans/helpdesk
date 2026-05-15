@@ -258,6 +258,17 @@ body::before {
     display: block;
 }
 
+.btn-warning {
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.btn-warning:hover {
+    background: rgba(245, 158, 11, 0.25);
+    transform: translateY(-1px);
+}
+
 .dropdown-header {
     padding: 16px;
     border-bottom: 1px solid var(--glass-border);
@@ -884,4 +895,57 @@ select option:hover {
 
 #templateSelect {
     margin-bottom: 10px;
+}
+
+.admin-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 15px;
+    border-bottom: 1px solid var(--glass-border);
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+
+
+.admin-name {
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.badge-current {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    margin-left: 8px;
+}
+
+.admin-details {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+}
+
+.admin-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.admin-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.btn-warning {
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.btn-warning:hover {
+    background: rgba(245, 158, 11, 0.25);
 }
